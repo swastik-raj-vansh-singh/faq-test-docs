@@ -1,0 +1,249 @@
+---
+title: Core Concepts
+description: Understand the fundamental building blocks of the platform.
+---
+
+# Core Concepts
+
+This guide covers the core concepts you need to understand before building with Lamatic. Reading this will give you a solid mental model of how everything fits together.
+
+---
+
+## 1. Flows
+
+A **Flow** is the central unit of work in Lamatic. Think of it as an automated pipeline — it takes an input, runs it through a series of steps (nodes), and produces an output.
+
+### How flows work
+
+1. A **trigger** starts the flow (e.g. a webhook, a schedule, or a manual run)
+2. Each **node** in the flow processes data and passes it to the next
+3. The final node produces the output (e.g. a GitHub PR, a Slack message, an API response)
+
+### Types of flows
+
+| Type | Description |
+|------|-------------|
+| **Simple** | Linear pipeline, no branching |
+| **Branching** | Uses conditions to take different paths |
+| **Loop** | Iterates over a list of items |
+| **Parallel** | Runs multiple branches at the same time |
+
+---
+
+## 2. Nodes
+
+**Nodes** are the individual steps inside a flow. Each node does one specific job.
+
+### Common node types
+
+#### Trigger nodes
+- **Webhook** — starts the flow when an HTTP request comes in
+- **Scheduler** — starts the flow on a cron schedule
+- **Manual** — lets you run the flow from the UI
+
+#### Action nodes
+- **HTTP Request** — calls any external API (e.g. GitHub, Slack, Notion)
+- **Code** — runs custom JavaScript or Python logic
+- **LLM** — sends a prompt to an AI model and returns the response
+- **Transform** — reshapes or filters data
+
+#### Control nodes
+- **Condition** — branches the flow based on a true/false check
+- **Loop** — iterates over an array
+- **Merge** — combines outputs from parallel branches
+
+### Node inputs and outputs
+
+Every node has:
+- **Input** — data it receives (from the trigger or a previous node)
+- **Config** — settings you define (e.g. URL, headers, prompt)
+- **Output** — data it produces, available to downstream nodes via `{{nodeName.output.fieldName}}`
+
+---
+
+## 3. Variables and Secrets
+
+### Variables
+Variables let you store reusable values across a project (e.g. a base URL, a model name). Set them in **Settings → Variables**.
+
+Reference a variable in any node field:
+```
+{{variables.BASE_URL}}/endpoint
+```
+
+### Secrets
+Secrets are like variables but encrypted — use them for tokens and API keys. Set them in **Settings → Variables → Secrets**.
+
+Reference a secret the same way:
+```
+{{secrets.GITHUB_PAT}}
+```
+
+**Never hardcode tokens in node configs.** Always use secrets.
+
+---
+
+## 4. The LLM Node
+
+The LLM node is what makes Lamatic powerful. It lets you send a prompt to a language model (like GPT-4 or Claude) and use the response downstream.
+
+### Anatomy of a prompt
+
+```
+System: You are a helpful assistant that generates FAQs.
+
+User: Here is a documentation page:
+{{webhookTrigger.output.content}}
+
+Generate 5 FAQs based on this content. Return as JSON array.
+```
+
+### Supported models
+
+- OpenAI: `gpt-4o`, `gpt-4-turbo`, `gpt-3.5-turbo`
+- Anthropic: `claude-3-5-sonnet`, `claude-3-opus`
+- Google: `gemini-1.5-pro`
+- Open source via Groq, Together AI, etc.
+
+### Structured output
+
+You can ask the LLM to return structured JSON by defining an **output schema**. This makes it easy to use the result in downstream nodes without extra parsing.
+
+---
+
+## 5. The Code Node
+
+The Code node lets you write custom logic in JavaScript (or Python). Use it when you need to:
+
+- Transform or reshape data
+- Do string manipulation
+- Compute values that aren't possible with built-in nodes
+- Parse API responses into a specific format
+
+### Example: format a file path
+
+```js
+const filePath = input.file_path;
+const branch = `faq/${filePath.replace(/\//g, '-').replace('.mdx', '')}-${Date.now()}`;
+
+return {
+  branch_name: branch,
+  file_path: filePath,
+};
+```
+
+The return value becomes the node's output, available as `{{codeNode.output.branch_name}}` in downstream nodes.
+
+---
+
+## 6. Webhooks
+
+A **Webhook trigger** gives your flow a unique URL. When something sends an HTTP POST to that URL, the flow starts.
+
+### Webhook payload
+
+Whatever JSON body is sent to the webhook is available as:
+```
+{{webhookTrigger.output.body}}
+```
+
+### Webhook key
+
+You can protect your webhook with a secret key. The caller must include it as a header:
+```
+x-webhook-key: your-secret-key
+```
+
+Set this in **Settings → Variables → Secrets** as `FAQ_WEBHOOK_KEY`.
+
+---
+
+## 7. GitHub Integration
+
+Lamatic flows can interact with the GitHub API directly using HTTP Request nodes. Common operations:
+
+| Operation | GitHub API endpoint |
+|-----------|-------------------|
+| Get file SHA | `GET /repos/{owner}/{repo}/contents/{path}` |
+| Get branch ref | `GET /repos/{owner}/{repo}/git/ref/heads/main` |
+| Create branch | `POST /repos/{owner}/{repo}/git/refs` |
+| Create/update file | `PUT /repos/{owner}/{repo}/contents/{path}` |
+| Create pull request | `POST /repos/{owner}/{repo}/pulls` |
+
+All requests need an `Authorization` header:
+```
+Bearer {{secrets.GITHUB_PAT}}
+```
+
+---
+
+## 8. Deployments
+
+A **Deployment** publishes the current version of your flow so it can receive live traffic.
+
+> Changes to nodes, variables, or secrets only take effect **after you deploy**.
+
+### Deploy steps
+
+1. Click **Save** to save unsaved changes
+2. Click **Deploy** to publish
+3. Wait for the deployment to complete (usually a few seconds)
+4. Your webhook URL stays the same across deployments
+
+---
+
+## 9. Execution Logs
+
+Every time a flow runs, Lamatic logs the execution. You can see:
+
+- Which nodes ran
+- Input and output for each node
+- Any errors (with the exact node that failed)
+- Total execution time
+
+Find logs at: **Flow → Executions tab**
+
+This is the first place to look when something isn't working.
+
+---
+
+## 10. FAQ Generator Pattern
+
+The FAQ Generator is a specific pattern built on top of these concepts:
+
+```
+Webhook trigger
+    ↓
+Code node (format file path + branch name)
+    ↓
+HTTP: Get File SHA (needed to update a file on GitHub)
+    ↓
+HTTP: Get Main Branch Ref (to branch off main)
+    ↓
+HTTP: Create Branch (new branch like faq/get-started-...)
+    ↓
+LLM node (generate FAQs from the doc content)
+    ↓
+HTTP: Update File in Branch (write FAQ file to the new branch)
+    ↓
+HTTP: Create Pull Request (open a PR for review)
+```
+
+When a `.mdx` doc is pushed to your repo, the GitHub Action sends it to the webhook. The flow generates FAQs with an LLM and opens a PR automatically.
+
+---
+
+## Summary
+
+| Concept | One-line description |
+|---------|---------------------|
+| Flow | An automated pipeline of nodes |
+| Node | A single step that does one job |
+| Trigger | What starts a flow |
+| Variable | A reusable config value |
+| Secret | An encrypted variable for tokens/keys |
+| LLM node | Sends a prompt to an AI model |
+| Code node | Runs custom JS/Python logic |
+| Webhook | A URL that triggers a flow via HTTP POST |
+| Deployment | Publishing a flow to make it live |
+| Execution log | A record of a single flow run |
