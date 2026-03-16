@@ -1,0 +1,60 @@
+---
+title: Getting Started
+description: Learn how to get up and running quickly.
+---
+
+# Getting Started
+
+Welcome! This guide will help you set up and start using the platform in minutes.
+
+## Prerequisites
+
+Before you begin, make sure you have the following installed:
+
+- Node.js v18 or higher
+- npm or yarn
+- A GitHub account
+
+## Installation
+
+Install the package using your preferred package manager:
+
+```bash
+npm install @lamatic/sdk
+```
+
+Or with yarn:
+
+```bash
+yarn add @lamatic/sdk
+```
+
+## Configuration
+
+Create a `.env` file in the root of your project and add your credentials:
+
+```env
+LAMATIC_API_KEY=your_api_key_here
+LAMATIC_PROJECT_ID=your_project_id
+```
+
+## Quick Start
+
+Here's a minimal example to get you started:
+
+```ts
+import { LamaticClient } from '@lamatic/sdk';
+
+const client = new LamaticClient({
+  apiKey: process.env.LAMATIC_API_KEY,
+});
+
+const result = await client.run('my-flow', { input: 'Hello world' });
+console.log(result);
+```
+
+## Next Steps
+
+- Read the [Core Concepts](/docs/concepts) guide
+- Explore [example flows](/docs/examples)
+- Join the [community Discord](https://discord.gg/lamatic)
