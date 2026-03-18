@@ -1,0 +1,202 @@
+---
+title: Hybrid Search
+description: Learn how to combine vector similarity search with keyword search in Lamatic.ai for more accurate and robust retrieval results.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Hybrid Search Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Hybrid Search Node combines vector-based semantic search with traditional keyword search (BM25) to deliver more accurate and robust retrieval results. It is especially effective when queries contain a mix of conceptual meaning and specific terms like product names, error codes, or identifiers.
+
+## Why Hybrid Search?
+
+Pure vector search excels at understanding the intent behind a query but can miss results that contain exact keywords. Pure keyword search finds exact matches but has no understanding of meaning. Hybrid Search merges both approaches:
+
+| Approach | Strength | Weakness |
+|---|---|---|
+| Vector Search | Understands semantics and synonyms | Misses exact keyword matches |
+| Keyword Search (BM25) | Precise exact-term matching | No semantic understanding |
+| **Hybrid Search** | **Both semantic and exact-term retrieval** | Slightly higher latency |
+
+For example, a query like *"OpenAI rate limit error 429"* benefits from hybrid search — the vector component understands the meaning of "rate limit error" while the keyword component ensures results containing "429" are surfaced.
+
+## How It Works
+
+The Hybrid Search Node runs two searches in parallel and merges the results using a configurable fusion algorithm:
+
+1. **Vector search** — converts the query to an embedding and finds the closest vectors in your database
+2. **Keyword search (BM25)** — scores documents based on term frequency and inverse document frequency
+3. **Score fusion** — combines the two ranked lists into a single ranked result using Reciprocal Rank Fusion (RRF) or a weighted average
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **Vector Database** | The database to search against | Yes |
+| **Query** | The input text to search for | Yes |
+| **Embedding Model** | Model used to convert the query to a vector | Yes |
+| **Top K** | Number of results to return | No |
+| **Vector Weight** | Weight given to vector search scores (0–1) | No |
+| **Keyword Weight** | Weight given to keyword search scores (0–1) | No |
+| **Fusion Method** | Algorithm to merge results (`rrf` or `weighted`) | No |
+| **Similarity Threshold** | Minimum score to include a result | No |
+| **Filter** | Metadata filters to narrow search scope | No |
+
+## Setting Up Hybrid Search
+
+<Steps>
+
+### Step 1: Add the Hybrid Search Node
+
+Drag the Hybrid Search Node from the Data section of the node palette into your flow. It can serve as a drop-in replacement for the Vector Search Node wherever you want improved retrieval.
+
+### Step 2: Select Your Vector Database
+
+Choose the vector database that contains your indexed content. This must be a database populated via the Vectorize and Index nodes.
+
+### Step 3: Configure the Embedding Model
+
+Select the same embedding model used when vectorizing your data. This ensures the vector component produces compatible embeddings.
+
+<Callout type="warning">
+The embedding model must match the one used during vectorization. A mismatch will cause the vector search component to return irrelevant results, degrading overall hybrid search quality.
+</Callout>
+
+### Step 4: Map the Query Input
+
+Set the query field to the variable containing the user's search input:
+
+```
+{{triggerNode_1.output.query}}
+```
+
+### Step 5: Tune the Fusion Weights
+
+Adjust the **Vector Weight** and **Keyword Weight** to control how much each search method influences the final ranking. Weights should sum to 1.0.
+
+- `vectorWeight: 0.7, keywordWeight: 0.3` — favors semantic search (good for natural language questions)
+- `vectorWeight: 0.3, keywordWeight: 0.7` — favors keyword search (good for technical queries with specific terms)
+- `vectorWeight: 0.5, keywordWeight: 0.5` — balanced (good default starting point)
+
+### Step 6: Choose a Fusion Method
+
+Select the algorithm used to merge the two ranked lists:
+
+- **RRF (Reciprocal Rank Fusion)**: Combines results based on their rank position in each list. Robust and does not require score normalization. Recommended for most use cases.
+- **Weighted Average**: Combines results using a weighted sum of raw scores. Requires that both score types are on a comparable scale.
+
+</Steps>
+
+## Fusion Methods Explained
+
+### Reciprocal Rank Fusion (RRF)
+
+RRF assigns a score to each result based on its rank in each individual list, then sums the scores:
+
+```
+RRF_score(d) = Σ 1 / (k + rank(d))
+```
+
+Where `k` is a constant (typically 60) that dampens the impact of very high-ranked results. RRF is robust because it does not depend on the absolute score values — only the relative ranking matters.
+
+**When to use**: Default choice. Works well across most content types and query patterns.
+
+### Weighted Average
+
+The weighted average method normalizes scores from both search types to a 0–1 range and computes a combined score:
+
+```
+combined_score = (vectorWeight × vector_score) + (keywordWeight × keyword_score)
+```
+
+**When to use**: When you have a strong prior on how much each method should contribute and want precise control over the blend.
+
+## Metadata Filters
+
+Hybrid Search supports the same metadata filtering operators as Vector Search:
+
+- **Equal** (`==`): Exact match on a metadata field
+- **Not Equal** (`!=`): Exclude results with a specific value
+- **Contains Any**: Match if the field contains any of the specified values
+- **Contains All**: Match if the field contains all specified values
+- **Like**: Pattern matching on string fields
+- **Is Null**: Check if a metadata field is empty
+
+Example filter:
+
+```json
+{
+  "source": { "$eq": "support-docs" },
+  "language": { "$in": ["en", "es"] }
+}
+```
+
+## Output Schema
+
+The Hybrid Search Node returns an array of merged results, each containing:
+
+| Field | Type | Description |
+|---|---|---|
+| `text` | string | The original text content of the matched chunk |
+| `score` | number | The combined hybrid score |
+| `vectorScore` | number | The raw score from the vector search component |
+| `keywordScore` | number | The raw score from the keyword search component |
+| `metadata` | object | Metadata stored with the vector |
+| `id` | string | Unique identifier of the matched record |
+
+## Comparing Search Modes
+
+Use this table to decide which search node fits your use case:
+
+| Use Case | Recommended Node |
+|---|---|
+| Natural language Q&A over documents | Vector Search or Hybrid Search |
+| Queries with specific codes, IDs, or names | Hybrid Search or Keyword Search |
+| Multilingual semantic search | Vector Search (with multilingual model) |
+| E-commerce product search | Hybrid Search |
+| Log analysis and error lookup | Keyword Search or Hybrid Search |
+| General-purpose RAG pipeline | Hybrid Search |
+
+## Best Practices
+
+- **Start with balanced weights**: Use `vectorWeight: 0.5, keywordWeight: 0.5` and adjust based on your query patterns and retrieval quality.
+- **Use RRF by default**: RRF is more stable than weighted average and requires less tuning.
+- **Evaluate with diverse queries**: Test with both natural language questions and queries containing specific terms or identifiers to confirm both search modes are contributing.
+- **Apply metadata filters aggressively**: Filtering by source, category, or language before scoring reduces noise from both the vector and keyword components.
+- **Monitor both sub-scores**: Inspect `vectorScore` and `keywordScore` in the output to understand which component is driving each result. If one score is consistently near zero, that component may be misconfigured.
+- **Combine with re-ranking**: For the highest retrieval quality, pass Hybrid Search results through a Re-Ranker Node before sending to an LLM. The re-ranker can re-order results based on deeper relevance signals.
+
+## Common Issues
+
+### Results are identical to pure vector search
+
+**Cause**: The keyword search component is not indexed or BM25 is not enabled on the vector database.
+**Fix**: Ensure your vector database supports hybrid search and that full-text indexing is enabled on the `text` field.
+
+### Specific terms not appearing in results
+
+**Cause**: Keyword weight is too low, allowing the vector component to dominate.
+**Fix**: Increase the `keywordWeight` (e.g., from 0.3 to 0.6) to give keyword matches more influence.
+
+### Too many irrelevant results
+
+**Cause**: No similarity threshold is set, allowing low-quality matches through.
+**Fix**: Set a `similarityThreshold` of 0.5 or higher to filter out weak matches from both components.
+
+### Inconsistent ranking across queries
+
+**Cause**: Using weighted average fusion with unnormalized scores.
+**Fix**: Switch to RRF fusion, which is rank-based and does not depend on raw score magnitudes.
+
+## Related Nodes
+
+- **Vector Search Node**: Semantic-only search. Use when your queries are primarily natural language with no specific keywords.
+- **Keyword Search Node**: Keyword-only full-text search. Use when exact term matching is the priority.
+- **Vectorize Node**: Converts your documents into embeddings for storage. Must be run before any search node can query your data.
+- **Index Node**: Stores vectorized data in the vector database.
+- **Re-Ranker Node**: Re-orders search results using a cross-encoder model for higher precision before passing to an LLM.
