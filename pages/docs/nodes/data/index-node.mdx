@@ -1,0 +1,230 @@
+---
+title: Index Node
+description: Learn how to use the Index Node in Lamatic.ai to store vectorized embeddings into your vector database for semantic search and retrieval.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Index Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Index Node stores vectorized embeddings and their associated metadata into a vector database. It is the final step in any data ingestion pipeline — after your content has been loaded and vectorized, the Index Node persists it so it can be queried later using the Vector Search or Hybrid Search nodes.
+
+## How It Works
+
+The Index Node receives an array of chunk objects from the Vectorize Node, each containing a text chunk, its vector embedding, and metadata. It then writes these records to the target vector database in batches. Once indexed, the data is available for similarity search immediately.
+
+The indexing process:
+
+1. Receives vectorized chunks from the Vectorize Node
+2. Connects to the configured vector database
+3. Writes each chunk with its embedding and metadata as a record
+4. Returns a summary of how many records were inserted, updated, or skipped
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **Vector Database** | The target vector database to write records into | Yes |
+| **Index Name** | The collection or index within the database to write to | Yes |
+| **Write Mode** | How to handle existing records (`insert`, `upsert`, `replace`) | No |
+| **ID Field** | The metadata field to use as the unique record identifier | No |
+| **Batch Size** | Number of records to write per API call (default: 100) | No |
+| **Namespace** | Logical namespace to organize records within an index | No |
+
+## Setting Up the Index Node
+
+<Steps>
+
+### Step 1: Add the Index Node
+
+Drag the Index Node from the Data section of the node palette into your flow. Place it directly after the Vectorize Node.
+
+### Step 2: Select a Vector Database
+
+Choose the vector database where your embeddings will be stored. Lamatic.ai supports the following vector databases:
+
+- **Pinecone** — fully managed, serverless vector database
+- **Weaviate** — open-source vector database with hybrid search support
+- **Qdrant** — high-performance vector database with rich filtering
+- **Chroma** — lightweight, open-source embedding database
+- **pgvector** — PostgreSQL extension for vector storage
+- **Supabase** — managed pgvector with REST API
+
+<Callout type="info">
+If you have not connected a vector database yet, go to **Integrations** in your Lamatic.ai workspace and add your database credentials before configuring this node.
+</Callout>
+
+### Step 3: Set the Index Name
+
+Enter the name of the collection, index, or table within your database where records will be written. If the index does not exist, Lamatic.ai will attempt to create it automatically using the dimensions of the embedding model you selected.
+
+### Step 4: Choose a Write Mode
+
+Select how the Index Node handles records when it runs:
+
+- **Insert**: Adds new records only. Fails if a record with the same ID already exists. Use for first-time indexing.
+- **Upsert**: Inserts new records and updates existing ones with the same ID. Use for incremental updates to keep the index current.
+- **Replace**: Deletes all existing records in the index before writing new ones. Use for full re-indexing when the source content has changed significantly.
+
+<Callout type="warning">
+**Replace** mode will delete all existing data in the index before writing. Only use this mode when you intend to fully re-index your data from scratch.
+</Callout>
+
+### Step 5: Configure the ID Field
+
+Specify which metadata field should be used as the unique record identifier. If no ID field is specified, Lamatic.ai will auto-generate UUIDs for each record. Using a stable, meaningful ID (such as a document path or content hash) makes it easier to update specific records later without re-indexing everything.
+
+### Step 6: Connect the Vectorize Node
+
+Connect the output of the Vectorize Node to the input of the Index Node. The Index Node expects an array of chunk objects in the format output by the Vectorize Node.
+
+</Steps>
+
+## Write Modes in Detail
+
+### Insert
+
+The `insert` mode adds records to the index without checking for existing records. If a record with the same ID already exists, the write will fail for that record and the error will be logged.
+
+**Best for**: Initial data loading when the index is empty.
+
+### Upsert
+
+The `upsert` mode checks for existing records by ID before writing. If a record exists, it is updated with the new embedding and metadata. If it does not exist, it is inserted as a new record.
+
+**Best for**: Incremental pipelines where documents are regularly updated. Running the pipeline again after a content change will update only the affected records.
+
+### Replace
+
+The `replace` mode deletes all records in the specified index (or namespace) before writing the new batch. This is equivalent to dropping and recreating the index.
+
+**Best for**: Full re-indexing workflows where you want to guarantee that stale records are removed before writing fresh data.
+
+## Namespaces
+
+Some vector databases (notably Pinecone) support namespaces — logical partitions within a single index. Using namespaces lets you:
+
+- Separate data from different sources in the same index (e.g., `docs`, `support`, `blog`)
+- Run searches scoped to a specific namespace without filtering by metadata
+- Manage data lifecycle independently per namespace (e.g., replace one namespace without affecting others)
+
+To use a namespace, enter its name in the **Namespace** field. If left empty, records are written to the default namespace.
+
+## Output Schema
+
+After indexing, the Index Node returns a summary object:
+
+| Field | Type | Description |
+|---|---|---|
+| `inserted` | number | Number of new records added |
+| `updated` | number | Number of existing records updated |
+| `skipped` | number | Number of records skipped due to errors or duplicates |
+| `total` | number | Total number of records processed |
+| `indexName` | string | The name of the index written to |
+| `namespace` | string | The namespace written to (if applicable) |
+
+## Supported Vector Databases
+
+### Pinecone
+
+Pinecone is a fully managed, serverless vector database optimized for high-scale production workloads.
+
+| Feature | Support |
+|---|---|
+| Namespaces | Yes |
+| Metadata filtering | Yes |
+| Hybrid search | Yes (with sparse vectors) |
+| Auto index creation | Yes |
+
+### Weaviate
+
+Weaviate is an open-source vector database with native support for hybrid search (BM25 + vector).
+
+| Feature | Support |
+|---|---|
+| Namespaces | No (uses classes) |
+| Metadata filtering | Yes |
+| Hybrid search | Yes (native) |
+| Auto index creation | Yes |
+
+### Qdrant
+
+Qdrant is a high-performance vector database with rich payload filtering and a Rust-based engine.
+
+| Feature | Support |
+|---|---|
+| Namespaces | Yes (collections) |
+| Metadata filtering | Yes |
+| Hybrid search | Yes (with sparse vectors) |
+| Auto index creation | Yes |
+
+### pgvector
+
+pgvector is a PostgreSQL extension that adds vector storage and similarity search to a standard Postgres database.
+
+| Feature | Support |
+|---|---|
+| Namespaces | No (uses tables/schemas) |
+| Metadata filtering | Yes (SQL WHERE clauses) |
+| Hybrid search | Yes (with full-text search) |
+| Auto index creation | Yes |
+
+## Incremental Indexing
+
+For production pipelines where documents are regularly updated, use incremental indexing rather than full re-indexing:
+
+1. Use **Upsert** write mode
+2. Set a stable **ID Field** derived from the source document (e.g., file path, URL, or document ID)
+3. Include a `last_updated` timestamp in your metadata
+4. Run the pipeline on a schedule or in response to source content changes
+
+This approach ensures only changed documents are re-vectorized and re-indexed, saving time and embedding API costs.
+
+## Best Practices
+
+- **Use upsert by default**: Unless you are doing an initial load or a full re-index, upsert is the safest write mode as it is idempotent.
+- **Define a stable ID field**: Auto-generated UUIDs make it impossible to update specific records without re-indexing everything. Use a deterministic ID based on source content.
+- **Use namespaces to separate data sources**: Keeping content from different sources in separate namespaces makes it easier to manage, query, and replace individual datasets.
+- **Monitor the output summary**: Check the `inserted`, `updated`, and `skipped` counts after each run. A high `skipped` count may indicate duplicate IDs or write errors that need investigation.
+- **Match index dimensions to your embedding model**: The vector dimensions of your index must match the output dimensions of your embedding model. Mismatched dimensions will cause write failures.
+- **Set an appropriate batch size**: A batch size of 100 works well for most databases. Reduce it if you encounter timeout or payload size errors.
+- **Test with a small dataset first**: Before indexing thousands of documents, run the pipeline on a small sample to verify the configuration and check the output schema in the test panel.
+
+## Common Issues
+
+### Write failures with dimension mismatch
+
+**Cause**: The index was created with a different embedding model than the one currently configured in the Vectorize Node.
+**Fix**: Delete the existing index and let Lamatic.ai recreate it with the correct dimensions, or switch back to the original embedding model.
+
+### Records not appearing in search results after indexing
+
+**Cause**: The index may still be building after a large write operation.
+**Fix**: Wait a few seconds and retry the search. For very large indexes, allow up to a minute for the index to become fully queryable.
+
+### High skipped count
+
+**Cause**: Records are being skipped due to duplicate IDs (in insert mode) or malformed chunk objects.
+**Fix**: Switch to upsert mode if duplicates are expected, or inspect the chunk objects from the Vectorize Node to ensure they conform to the expected schema.
+
+### Namespace not found error
+
+**Cause**: Some databases require namespaces to be created explicitly before writing.
+**Fix**: Check your vector database's documentation for namespace creation requirements. In Pinecone, namespaces are created automatically on first write.
+
+### Timeout errors on large batches
+
+**Cause**: The batch size is too large for the database's API to process within the timeout window.
+**Fix**: Reduce the **Batch Size** parameter to 25–50 and re-run the pipeline.
+
+## Related Nodes
+
+- **Vectorize Node**: Converts text into embeddings. Must run before the Index Node in any ingestion pipeline.
+- **Vector Search Node**: Queries the index using semantic similarity search.
+- **Hybrid Search Node**: Queries the index using a combination of semantic and keyword search.
+- **Keyword Search Node**: Queries the index using BM25 full-text search only.
+- **File Loader Node**: Loads documents from various sources to feed into the vectorization pipeline.
