@@ -242,3 +242,38 @@ Very large batch jobs may take several minutes to complete. Use the Flow's async
 - **Hybrid Search Node**: Combines vector search with keyword search for improved results on mixed queries.
 - **File Loader Node**: Loads documents from local files, Google Drive, or S3 for vectorization.
 - **Web Scraper Node**: Scrapes web pages and passes content to the Vectorize Node.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "What is vectorization and what does the Vectorize Node actually do?",
+    answer: "Vectorization converts text into numerical arrays, called embeddings, that capture its semantic meaning. The Vectorize Node takes your input text, splits it into chunks, and uses a selected embedding model to generate these numerical representations. These vectors are then typically sent to an [Index Node] for storage in a vector database."
+  },
+  {
+    question: "How does the Vectorize Node handle documents that are too long for an embedding model?",
+    answer: "The node uses a chunking process to break large documents into smaller pieces that fit within the embedding model's context limit. You can control this by setting the chunk size, the token overlap between consecutive chunks, and the overall chunking strategy. This ensures that all your content can be processed regardless of its initial size."
+  },
+  {
+    question: "What is the difference between the 'Chunk Size' and 'Chunk Overlap' parameters?",
+    answer: "'Chunk Size' defines the maximum number of tokens in a single piece of text sent to the model, while 'Chunk Overlap' specifies how many tokens from the end of one chunk are repeated at the beginning of the next. Using an overlap helps preserve the semantic context across chunks, which can improve the quality of search results."
+  },
+  {
+    question: "Which embedding model should I choose for my project?",
+    answer: "Your choice of embedding model depends on your specific goals, balancing factors like performance, cost, and the type of content you are vectorizing. Some models are optimized for specific languages or domains, while others are more general-purpose. The model you select will directly influence the relevance of results you get from the [Vector Search Node]."
+  },
+  {
+    question: "How can I attach my own custom data or IDs to the vectors?",
+    answer: "Use the 'Metadata' parameter to attach your own key-value data, such as source identifiers or timestamps, to each vector chunk. This information is stored alongside the vector in the database but is not part of the content that gets vectorized. You can later use this metadata for filtering or reference in the [Vector Search Node]."
+  },
+  {
+    question: "What happens to the vectors after this node creates them?",
+    answer: "After the Vectorize Node creates the vector embeddings, it passes them downstream to be stored and indexed for retrieval. The most common next step is to connect its output to an [Index Node]. The Index Node takes the generated vectors and writes them into your configured vector database."
+  },
+  {
+    question: "How does changing the chunking strategy affect my search results?",
+    answer: "The chunking strategy determines the size and semantic context of the content that gets embedded, which directly impacts search relevance. For example, splitting by paragraphs preserves broader ideas, while a sentence strategy creates more granular chunks for very specific queries. You may need to experiment to find the optimal strategy for your documents and use case."
+  }
+]} />
