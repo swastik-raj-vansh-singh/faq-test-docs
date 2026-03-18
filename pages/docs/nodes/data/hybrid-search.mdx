@@ -200,3 +200,38 @@ Use this table to decide which search node fits your use case:
 - **Vectorize Node**: Converts your documents into embeddings for storage. Must be run before any search node can query your data.
 - **Index Node**: Stores vectorized data in the vector database.
 - **Re-Ranker Node**: Re-orders search results using a cross-encoder model for higher precision before passing to an LLM.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "What is the main advantage of hybrid search over using only vector search?",
+    answer: "The main advantage is that it combines vector search's ability to understand meaning with keyword search's precision for exact matches. This prevents missing important results that contain specific terms like product codes, SKUs, or error messages that vector search alone might overlook. The result is a more comprehensive and accurate set of search results for users."
+  },
+  {
+    question: "How do I control the influence of semantic versus keyword matching in my results?",
+    answer: "You can control the balance using the \"Vector Weight\" and \"Keyword Weight\" configuration parameters. These values determine how much each search method's score contributes to the final ranking. For example, increasing the \"Vector Weight\" will prioritize results that are semantically similar to the query text, while a higher \"Keyword Weight\" emphasizes exact term matches."
+  },
+  {
+    question: "For which types of user queries is hybrid search most effective?",
+    answer: "Hybrid search is most effective for queries that contain a mix of general concepts and specific identifiers. For instance, a search like \"how to fix connection error E-101\" benefits from matching the exact term \"E-101\" while also understanding the semantic meaning of \"how to fix\". It handles user intent that is not purely conceptual or purely literal."
+  },
+  {
+    question: "Does the configured embedding model impact the keyword search part of the query?",
+    answer: "No, the embedding model only affects the vector search portion of the process. The model is used to transform the text query into a numerical vector for semantic comparison against the indexed data. The keyword search operates completely independently by performing exact text matching on the source content."
+  },
+  {
+    question: "What happens if a document is found by keyword search but not by vector search?",
+    answer: "The document is still included in the initial results and given a score before the final ranking. Its final score is calculated using its keyword score multiplied by the keyword weight, while its vector score would simply be zero. If this final weighted score is high enough, the document can still appear in the top results."
+  },
+  {
+    question: "How can I narrow my hybrid search to only include documents with specific metadata?",
+    answer: "You can use the \"Filter\" parameter to apply metadata constraints before the search is executed. This allows you to restrict the search to a subset of documents, such as those with a certain tag or created within a specific date range. Filtering improves both performance and the relevance of your final results."
+  },
+  {
+    question: "Can you explain how the final score for a result is calculated from the two search methods?",
+    answer: "The final score is a weighted sum calculated with the formula: (vector_weight x vector_score) + (keyword_weight x keyword_score). Each potential result receives a score from both search methods, which are then combined based on the weights you configure. The system ranks all documents by this final score to determine the most relevant results."
+  }
+]} />
