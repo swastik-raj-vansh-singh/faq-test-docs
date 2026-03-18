@@ -1,0 +1,244 @@
+---
+title: Vectorize Node
+description: Learn how to convert text and documents into vector embeddings using Lamatic.ai's Vectorize Node for semantic search and AI-powered retrieval.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Vectorize Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Vectorize Node converts raw text or document content into high-dimensional vector embeddings. These embeddings capture the semantic meaning of your content and are stored in a vector database for later retrieval using the Vector Search Node.
+
+## How It Works
+
+Vectorization is the process of transforming human-readable text into numerical representations that machine learning models can process. The Vectorize Node:
+
+1. Accepts raw text, documents, or structured data as input
+2. Splits the content into chunks based on your configuration
+3. Sends each chunk to the selected embedding model
+4. Receives a vector (array of floating-point numbers) for each chunk
+5. Passes the vectors and their metadata downstream to the Index Node for storage
+
+These vectors encode the semantic meaning of your text so that similar concepts end up close together in vector space, enabling semantic similarity search.
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **Embedding Model** | The model used to generate embeddings | Yes |
+| **Input Text** | The text content to vectorize | Yes |
+| **Chunk Size** | Maximum number of tokens per chunk | No |
+| **Chunk Overlap** | Number of overlapping tokens between chunks | No |
+| **Chunking Strategy** | How to split the content (fixed, sentence, paragraph) | No |
+| **Metadata** | Key-value pairs to attach to each chunk | No |
+| **Batch Size** | Number of chunks to process in one API call | No |
+
+## Setting Up the Vectorize Node
+
+<Steps>
+
+### Step 1: Add the Vectorize Node
+
+Drag the Vectorize Node from the Data section of the node palette into your flow. Place it after the node that provides your source content — such as a File Loader, Web Scraper, or HTTP Request node.
+
+### Step 2: Select an Embedding Model
+
+Choose an embedding model from the dropdown. Lamatic.ai supports a range of embedding providers:
+
+- **OpenAI** — `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002`
+- **Cohere** — `embed-english-v3.0`, `embed-multilingual-v3.0`
+- **Google** — `text-embedding-004`, `embedding-001`
+- **Mistral** — `mistral-embed`
+- **HuggingFace** — Various open-source models
+
+<Callout type="warning">
+Once you choose an embedding model and populate your vector database, do not change the model without re-vectorizing all your data. Different models produce incompatible vector spaces.
+</Callout>
+
+### Step 3: Map the Input Text
+
+Connect the input text to the content you want to vectorize. This is typically the output of a preceding loader node:
+
+```
+{{fileLoaderNode_1.output.content}}
+```
+
+Or for web-scraped content:
+
+```
+{{webScraperNode_1.output.text}}
+```
+
+### Step 4: Configure Chunking
+
+Set the **Chunk Size** and **Chunk Overlap** to control how your content is split before embedding. Chunking is necessary because embedding models have a maximum token limit and because smaller, focused chunks tend to retrieve better in semantic search.
+
+<Callout type="info">
+A chunk size of 512 tokens with an overlap of 50-100 tokens is a common starting point. Adjust based on your content type and retrieval quality.
+</Callout>
+
+### Step 5: Choose a Chunking Strategy
+
+Select how you want the text to be split:
+
+- **Fixed**: Splits at exactly the token limit, regardless of sentence boundaries
+- **Sentence**: Splits at sentence boundaries, keeping sentences intact
+- **Paragraph**: Splits at paragraph boundaries for more contextually coherent chunks
+- **Recursive**: Tries progressively smaller separators until chunks fit within the size limit (recommended for most use cases)
+
+### Step 6: Add Metadata
+
+Attach metadata to each chunk so you can filter by it later in Vector Search. Metadata is passed as a JSON object:
+
+```json
+{
+  "source": "product-docs",
+  "category": "billing",
+  "version": "2.0",
+  "author": "eng-team"
+}
+```
+
+You can reference dynamic values from upstream nodes in your metadata fields using template variables.
+
+### Step 7: Connect to the Index Node
+
+Connect the output of the Vectorize Node to an Index Node, which will store the embeddings in your vector database.
+
+</Steps>
+
+## Chunking Strategies in Detail
+
+Choosing the right chunking strategy significantly impacts retrieval quality. Here is a breakdown of each approach:
+
+### Fixed Chunking
+
+Splits text at an exact token count. Simple and fast, but can cut sentences mid-way, losing context at chunk boundaries.
+
+**Best for**: Structured data, tables, or content where sentence integrity is less important.
+
+### Sentence Chunking
+
+Splits text at sentence boundaries (periods, question marks, exclamation points). Preserves sentence meaning but chunks may vary widely in size.
+
+**Best for**: Articles, blog posts, and conversational content.
+
+### Paragraph Chunking
+
+Splits at paragraph breaks (`\n\n`). Keeps related sentences together, producing semantically coherent chunks.
+
+**Best for**: Long-form documents, technical documentation, and reports.
+
+### Recursive Chunking
+
+Tries to split on paragraphs first, then sentences, then words, until chunks fit within the token limit. This is the most flexible strategy.
+
+**Best for**: Mixed-format documents, PDFs, and content with inconsistent structure.
+
+## Chunk Overlap
+
+Overlap ensures that context is not lost at chunk boundaries. A chunk overlap of 10-20% of your chunk size is usually sufficient.
+
+For example, with a chunk size of 512 tokens and an overlap of 50 tokens:
+- Chunk 1: tokens 1–512
+- Chunk 2: tokens 463–974
+- Chunk 3: tokens 925–1436
+
+This means a sentence split across two chunks can still be retrieved meaningfully from either chunk.
+
+## Output Schema
+
+The Vectorize Node outputs an array of chunk objects, each containing:
+
+| Field | Type | Description |
+|---|---|---|
+| `text` | string | The original text of the chunk |
+| `embedding` | number[] | The vector representation of the chunk |
+| `metadata` | object | The metadata attached to the chunk |
+| `chunkIndex` | number | The sequential index of this chunk |
+| `tokenCount` | number | The number of tokens in this chunk |
+
+## Supported Embedding Models
+
+### OpenAI
+
+| Model | Dimensions | Max Tokens | Notes |
+|---|---|---|---|
+| `text-embedding-3-small` | 1536 | 8191 | Best price-to-performance |
+| `text-embedding-3-large` | 3072 | 8191 | Highest accuracy |
+| `text-embedding-ada-002` | 1536 | 8191 | Legacy model |
+
+### Cohere
+
+| Model | Dimensions | Max Tokens | Notes |
+|---|---|---|---|
+| `embed-english-v3.0` | 1024 | 512 | English-only, fast |
+| `embed-multilingual-v3.0` | 1024 | 512 | 100+ languages |
+
+### Google
+
+| Model | Dimensions | Max Tokens | Notes |
+|---|---|---|---|
+| `text-embedding-004` | 768 | 2048 | Latest Google model |
+| `embedding-001` | 768 | 2048 | Stable release |
+
+## Handling Large Documents
+
+When processing large documents (e.g., a 100-page PDF), keep the following in mind:
+
+- **Batch processing**: The Vectorize Node automatically batches chunks to stay within API rate limits. Adjust the **Batch Size** parameter if you are hitting rate limit errors.
+- **Token limits**: Each embedding model has a maximum input token limit per chunk. Chunks that exceed this limit will be truncated. Ensure your chunk size does not exceed the model's limit.
+- **Cost**: Each chunk requires one API call to the embedding provider. A large document split into many small chunks will incur proportionally higher embedding costs.
+
+<Callout type="warning">
+Very large batch jobs may take several minutes to complete. Use the Flow's async execution mode for documents larger than a few hundred pages.
+</Callout>
+
+## Best Practices
+
+- **Match models end-to-end**: Use the same embedding model in your Vectorize Node and your Vector Search Node. Mixing models is the most common cause of poor retrieval quality.
+- **Tune chunk size for your use case**: Smaller chunks (256–512 tokens) work well for precise Q&A retrieval. Larger chunks (1024+ tokens) work better for summarization and broader context retrieval.
+- **Always add metadata**: Even basic metadata like `source` and `date` will allow you to filter searches and debug retrieval issues later.
+- **Use recursive chunking by default**: It handles messy, real-world documents better than fixed or sentence strategies.
+- **Test retrieval after vectorizing**: Run a few test queries in the Vector Search Node immediately after indexing to verify the chunks are being retrieved as expected.
+- **Re-vectorize when content changes**: Vectors are static snapshots. If your source documents are updated, re-run the vectorization pipeline to keep the index current.
+- **Monitor embedding costs**: Track your usage in the embedding provider's dashboard, especially when vectorizing large corpora. Use `text-embedding-3-small` for cost efficiency during development.
+
+## Common Issues
+
+### Poor search results
+
+**Cause**: Mismatched embedding models between Vectorize and Vector Search nodes.
+**Fix**: Ensure both nodes use the exact same embedding model identifier.
+
+### Chunks are too large or too small
+
+**Cause**: Default chunk size is not suited for your content type.
+**Fix**: Experiment with chunk sizes between 256 and 1024 tokens. Use the test panel to inspect chunk content and adjust accordingly.
+
+### Rate limit errors
+
+**Cause**: Too many chunks being sent to the embedding API simultaneously.
+**Fix**: Reduce the **Batch Size** parameter or add a delay between batches.
+
+### Missing metadata in search results
+
+**Cause**: Metadata was not configured in the Vectorize Node before indexing.
+**Fix**: Update the metadata configuration and re-run the vectorization pipeline. Metadata cannot be added retroactively to existing vectors.
+
+### Truncated chunks
+
+**Cause**: Chunk size exceeds the embedding model's maximum token limit.
+**Fix**: Reduce the chunk size to stay within the model's token limit (e.g., 8191 for OpenAI models, 512 for Cohere models).
+
+## Related Nodes
+
+- **Index Node**: Stores the vectorized chunks in your vector database. Always connect the Vectorize Node output to an Index Node.
+- **Vector Search Node**: Queries the vector database using semantic similarity. Must use the same embedding model as the Vectorize Node.
+- **Hybrid Search Node**: Combines vector search with keyword search for improved results on mixed queries.
+- **File Loader Node**: Loads documents from local files, Google Drive, or S3 for vectorization.
+- **Web Scraper Node**: Scrapes web pages and passes content to the Vectorize Node.
