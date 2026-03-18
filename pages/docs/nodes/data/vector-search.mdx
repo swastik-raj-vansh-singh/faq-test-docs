@@ -1,0 +1,112 @@
+---
+title: Vector Search
+description: Learn how to perform vector similarity search in Lamatic.ai to retrieve semantically relevant results from your vector database.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Vector Search
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Vector Search Node allows you to query your vector database and retrieve the most semantically similar results to a given input. It converts your query into an embedding and compares it against stored vectors to find the closest matches.
+
+## How It Works
+
+Vector search operates by converting text into high-dimensional numerical representations (embeddings) and finding the nearest neighbors in vector space. When a user submits a query, the Vector Search Node:
+
+1. Takes the input query text
+2. Converts it to an embedding using your configured embedding model
+3. Searches the specified vector database for the closest matching vectors
+4. Returns the top-k most similar results along with their metadata and similarity scores
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **Vector Database** | The vector database to search against | Yes |
+| **Query** | The input text to search for | Yes |
+| **Embedding Model** | The model used to convert the query to a vector | Yes |
+| **Top K** | Number of results to return (default: 5) | No |
+| **Similarity Threshold** | Minimum similarity score for results (0-1) | No |
+| **Filter** | Metadata filters to narrow search scope | No |
+
+## Setting Up Vector Search
+
+<Steps>
+
+### Step 1: Add the Vector Search Node
+
+Drag the Vector Search Node from the Data section of the node palette into your flow.
+
+### Step 2: Select Your Vector Database
+
+Choose the vector database you want to search against. This should be a database you've previously populated using the Vectorize and Index nodes.
+
+### Step 3: Configure the Embedding Model
+
+Select the same embedding model that was used to vectorize your data. Using a different model will produce poor search results because the vector dimensions won't align.
+
+<Callout type="warning">
+The embedding model in your Vector Search Node must match the embedding model used in your Vectorize Node. Mismatched models will return irrelevant results.
+</Callout>
+
+### Step 4: Set the Query Input
+
+Map the query input to the appropriate variable from your trigger or a preceding node. For example: `{{triggerNode_1.output.question}}`
+
+### Step 5: Adjust Top K and Threshold
+
+Set the number of results (Top K) and optionally a similarity threshold. A threshold of 0.7 or higher typically returns only highly relevant results.
+
+</Steps>
+
+## Using Metadata Filters
+
+You can filter search results by metadata to narrow the scope of your search. This is useful when your vector database contains documents from multiple sources and you want to search within a specific subset.
+
+Supported filter operators:
+
+- **Equal** (`==`): Exact match on a metadata field
+- **Not Equal** (`!=`): Exclude results with a specific metadata value
+- **Contains Any**: Match if the metadata field contains any of the specified values
+- **Contains All**: Match if the metadata field contains all specified values
+- **Like**: Pattern matching on string metadata fields
+- **Is Null**: Check if a metadata field is empty
+
+Example filter configuration:
+
+```json
+{
+  "source": { "$eq": "knowledge-base" },
+  "category": { "$in": ["product", "engineering"] }
+}
+```
+
+## Output Schema
+
+The Vector Search Node returns an array of results, each containing:
+
+| Field | Type | Description |
+|---|---|---|
+| `text` | string | The original text content of the matched chunk |
+| `score` | number | Similarity score between 0 and 1 |
+| `metadata` | object | The metadata stored with the vector |
+| `id` | string | The unique identifier of the matched record |
+
+## Best Practices
+
+- **Match your embedding models**: Always use the same embedding model for vectorization and search. This is the most common source of poor results.
+- **Start with Top K = 3-5**: Retrieving too many results adds noise. Start small and increase only if needed.
+- **Use metadata filters**: If your database has documents from multiple sources, filter by source to improve relevance.
+- **Set a similarity threshold**: A threshold of 0.7-0.8 filters out low-quality matches that could confuse the LLM downstream.
+- **Test with real queries**: Use the test panel to run actual user queries and inspect the returned chunks before deploying.
+
+## Related Nodes
+
+- **Hybrid Search Node**: Combines vector search with keyword search for better results on queries that mix semantic meaning with exact terms.
+- **Keyword Search Node**: Pure keyword-based full-text search for exact match use cases.
+- **Vectorize Node**: Converts text into embeddings before storing in a vector database.
+- **Index Node**: Stores vectorized data in your vector database.
