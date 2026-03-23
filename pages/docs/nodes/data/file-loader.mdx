@@ -1,0 +1,159 @@
+---
+title: File Loader Node
+description: Learn how to use the File Loader Node in Lamatic.ai to load documents from various sources into your data ingestion pipeline.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# File Loader Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The File Loader Node loads documents from a variety of sources — local uploads, cloud storage, or URLs — and outputs their raw text content for downstream processing. It is the entry point of any data ingestion pipeline, feeding content into the Vectorize Node and ultimately into your vector database.
+
+## How It Works
+
+1. Connects to the configured source (file upload, S3, Google Drive, URL, etc.)
+2. Downloads or reads the file
+3. Extracts raw text content based on the file type
+4. Splits the content into a list of document objects, each with text and metadata
+5. Passes the document list to the next node in the flow
+
+## Supported File Types
+
+| Format | Extension | Notes |
+|---|---|---|
+| Plain text | `.txt` | Loaded as-is |
+| Markdown | `.md`, `.mdx` | Frontmatter stripped by default |
+| PDF | `.pdf` | Text extracted per page |
+| Word Document | `.docx` | Text and headings extracted |
+| CSV | `.csv` | Each row treated as a document |
+| JSON | `.json` | Configurable field extraction |
+| HTML | `.html` | Tags stripped, text extracted |
+| PowerPoint | `.pptx` | Text extracted per slide |
+
+## Supported Sources
+
+| Source | Description |
+|---|---|
+| **File Upload** | Upload a file directly in the flow editor |
+| **URL** | Fetch a file from a public HTTP/HTTPS URL |
+| **Amazon S3** | Load files from an S3 bucket |
+| **Google Drive** | Load files from a connected Google Drive |
+| **GitHub** | Load files from a repository path |
+| **Webhook** | Receive file content via a webhook trigger |
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **Source Type** | Where to load the file from | Yes |
+| **Source Path / URL** | The file path, URL, or object key | Yes |
+| **File Type** | The format of the file (auto-detected if not set) | No |
+| **Metadata Fields** | Additional metadata to attach to each document | No |
+| **Include File Name** | Add the source file name to each document's metadata | No |
+| **Encoding** | Text encoding to use when reading the file (default: UTF-8) | No |
+
+## Setting Up the File Loader Node
+
+<Steps>
+
+### Step 1: Add the File Loader Node
+
+Drag the File Loader Node from the Data section of the node palette. Place it at the beginning of your ingestion flow.
+
+### Step 2: Select a Source Type
+
+Choose where your files will be loaded from. For a quick test, use **File Upload** to upload a document directly. For production pipelines, connect a cloud storage source such as S3 or Google Drive.
+
+<Callout type="info">
+Cloud storage sources require a connected integration. Go to **Integrations** in your Lamatic.ai workspace to add credentials before configuring this node.
+</Callout>
+
+### Step 3: Set the Source Path
+
+Enter the path, URL, or object key for the file to load:
+
+- **File Upload**: Select the file in the upload panel
+- **URL**: Enter the full URL, e.g. `https://example.com/docs/guide.pdf`
+- **S3**: Enter the object key, e.g. `documents/2024/report.pdf`
+- **Google Drive**: Enter the file ID from the Drive URL
+
+### Step 4: Configure Metadata
+
+Attach metadata to each document to make filtering easier during search. Common metadata fields include:
+
+```json
+{
+  "source": "product-docs",
+  "language": "en",
+  "version": "2.1"
+}
+```
+
+This metadata will be stored alongside the vector embeddings and can be used to filter search results in downstream nodes.
+
+### Step 5: Connect to the Vectorize Node
+
+Connect the output of the File Loader Node to the input of the Vectorize Node to continue the ingestion pipeline.
+
+</Steps>
+
+## Output Schema
+
+The File Loader Node outputs an array of document objects:
+
+| Field | Type | Description |
+|---|---|---|
+| `text` | string | The extracted text content of the document or page |
+| `metadata` | object | Metadata attached to the document |
+| `metadata.source` | string | The source path or URL of the file |
+| `metadata.fileName` | string | The name of the file (if enabled) |
+| `metadata.pageNumber` | number | Page number for paginated formats like PDF |
+| `metadata.rowIndex` | number | Row index for CSV files |
+
+## Loading Multiple Files
+
+To load multiple files in a single flow run, you can:
+
+- **Use a trigger with a file list**: Pass an array of file paths or URLs from the trigger node and loop over them using a Loop Node
+- **Use wildcard paths**: For S3 sources, specify a prefix (e.g., `documents/2024/`) to load all files under that path
+- **Chain multiple File Loader Nodes**: Connect several File Loader Nodes in parallel and merge their outputs before the Vectorize Node
+
+## Best Practices
+
+- **Always attach meaningful metadata**: At minimum, include a `source` field that identifies where the content came from. This makes it possible to filter search results and manage data lifecycle (e.g., replacing all documents from a specific source).
+- **Use stable source paths as IDs**: When combined with the Index Node's **ID Field** setting, a file path or URL can serve as a stable record identifier, enabling clean incremental updates without re-indexing everything.
+- **Test with small files first**: Before running a full pipeline on hundreds of documents, test with a single small file to verify that text extraction, metadata, and downstream vectorization are all working correctly.
+- **Handle encoding explicitly**: If your documents use a non-UTF-8 encoding (e.g., Latin-1), set the **Encoding** field explicitly to avoid garbled text in the extracted output.
+
+## Common Issues
+
+### Empty text output for PDF files
+
+**Cause**: The PDF contains scanned images rather than embedded text.
+**Fix**: Use an OCR preprocessing step before passing the file to the File Loader Node. Lamatic.ai's OCR integration can extract text from image-based PDFs.
+
+### File not found error for S3 sources
+
+**Cause**: The object key is incorrect or the connected IAM role does not have `s3:GetObject` permission on the target bucket.
+**Fix**: Verify the object key in the S3 console and check that the integration credentials include the required permissions.
+
+### Metadata not appearing in search results
+
+**Cause**: Metadata was added after the content was indexed. Existing records in the vector database do not have the new fields.
+**Fix**: Re-run the ingestion pipeline with the updated metadata configuration. Use **Upsert** mode in the Index Node to update existing records.
+
+### CSV rows are missing from the output
+
+**Cause**: Rows with empty text fields are skipped by default.
+**Fix**: Ensure that the column containing the primary text content is not empty. Configure the **Text Field** parameter to point to the correct column if the default (`text`) does not match your CSV schema.
+
+## Related Nodes
+
+- **Vectorize Node**: Converts the text output of the File Loader Node into vector embeddings.
+- **Index Node**: Stores the vectorized documents in a vector database.
+- **Vector Search Node**: Retrieves documents from the index using semantic similarity.
+- **Hybrid Search Node**: Retrieves documents using a combination of semantic and keyword search.
