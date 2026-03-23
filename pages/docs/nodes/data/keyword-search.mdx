@@ -1,0 +1,124 @@
+---
+title: Keyword Search Node
+description: Learn how to use the Keyword Search Node in Lamatic.ai to perform full-text BM25 search over your indexed content.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Keyword Search Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Keyword Search Node performs full-text search over your indexed content using the BM25 algorithm. Unlike vector search, it does not require an embedding model — it matches documents based on the exact terms present in the query. This makes it fast, lightweight, and highly effective for queries containing specific identifiers, error codes, product names, or other precise terms.
+
+## How It Works
+
+BM25 (Best Match 25) is a ranking function that scores documents based on:
+
+- **Term frequency**: How often the query terms appear in the document
+- **Inverse document frequency**: How rare the query terms are across the entire index
+- **Document length normalization**: Penalizes very long documents to avoid bias toward length
+
+Documents are ranked by their BM25 score and the top results are returned.
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **Vector Database** | The database to search against | Yes |
+| **Query** | The input text to search for | Yes |
+| **Top K** | Number of results to return | No |
+| **Score Threshold** | Minimum BM25 score to include a result | No |
+| **Filter** | Metadata filters to narrow the search scope | No |
+
+## Setting Up Keyword Search
+
+<Steps>
+
+### Step 1: Add the Keyword Search Node
+
+Drag the Keyword Search Node from the Data section of the node palette into your flow.
+
+### Step 2: Select Your Vector Database
+
+Choose the vector database that contains your indexed content. The database must have full-text indexing enabled on the `text` field.
+
+<Callout type="info">
+Not all vector databases support BM25 out of the box. Weaviate and Elasticsearch have native BM25 support. For Pinecone and Qdrant, ensure sparse vector indexing is configured before using this node.
+</Callout>
+
+### Step 3: Map the Query Input
+
+Set the query field to the variable containing the user's search input:
+
+```
+{{triggerNode_1.output.query}}
+```
+
+### Step 4: Set Top K
+
+Set the number of results to return. For most use cases, 10–20 is a good starting point.
+
+### Step 5: Apply Metadata Filters (Optional)
+
+Narrow the search scope using metadata filters to avoid searching across irrelevant content:
+
+```json
+{
+  "source": { "$eq": "support-docs" }
+}
+```
+
+</Steps>
+
+## Output Schema
+
+| Field | Type | Description |
+|---|---|---|
+| `text` | string | The original text content of the matched chunk |
+| `score` | number | The BM25 relevance score |
+| `metadata` | object | Metadata stored with the record |
+| `id` | string | Unique identifier of the matched record |
+
+## When to Use Keyword Search
+
+| Use Case | Recommended |
+|---|---|
+| Queries with specific error codes or IDs | Yes |
+| Product name or SKU lookup | Yes |
+| Natural language questions | No — use Vector Search |
+| Multilingual semantic queries | No — use Vector Search |
+| Mixed queries with both terms and meaning | No — use Hybrid Search |
+
+## Best Practices
+
+- **Use for exact-term queries**: Keyword search excels when the user's query contains specific tokens that are likely to appear verbatim in the documents.
+- **Combine with Vector Search**: For general-purpose retrieval, use the Hybrid Search Node instead, which runs both BM25 and vector search in parallel.
+- **Enable full-text indexing**: Ensure your vector database has full-text or inverted indexing enabled on the `text` field, otherwise BM25 scoring will not work correctly.
+- **Set a score threshold**: Use **Score Threshold** to filter out weak matches. BM25 scores are not normalized, so threshold values depend on your content and query patterns — start with a value of 1.0 and adjust based on results.
+
+## Common Issues
+
+### No results returned for exact terms
+
+**Cause**: Full-text indexing is not enabled on the target index.
+**Fix**: Enable BM25 or full-text indexing in your vector database settings and re-index your content.
+
+### Results are irrelevant
+
+**Cause**: The query contains common words (stopwords) that appear in many documents, reducing score discrimination.
+**Fix**: Apply metadata filters to narrow the search scope, or switch to Hybrid Search to add semantic context.
+
+### Scores vary wildly between queries
+
+**Cause**: BM25 scores are not normalized and depend on the query length and document corpus. Short single-term queries produce very different score ranges than multi-term queries.
+**Fix**: Use relative ranking (Top K) rather than absolute score thresholds, or normalize scores in a downstream transformation node.
+
+## Related Nodes
+
+- **Vector Search Node**: Semantic similarity search using embeddings. Use when queries are natural language.
+- **Hybrid Search Node**: Combines BM25 and vector search for the best of both approaches.
+- **Re-Ranker Node**: Re-orders search results using a cross-encoder for higher precision.
+- **Index Node**: Stores vectorized content in the database that this node searches.
