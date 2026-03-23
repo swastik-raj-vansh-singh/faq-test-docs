@@ -1,0 +1,190 @@
+---
+title: Re-Ranker Node
+description: Learn how to use the Re-Ranker Node in Lamatic.ai to improve retrieval precision by re-ordering search results using a cross-encoder model before passing them to an LLM.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Re-Ranker Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Re-Ranker Node improves retrieval precision by re-ordering the results returned by a search node using a cross-encoder model. Unlike bi-encoder embedding models (used in vector search) that score documents independently, a cross-encoder evaluates the query and each document together — producing a more accurate relevance score at the cost of additional latency.
+
+## Why Re-Rank?
+
+Vector search and hybrid search retrieve a broad set of candidates quickly, but their scores are approximate. A re-ranker reads each candidate in full context alongside the query and scores them more accurately:
+
+| Stage | Method | Strength | Limitation |
+|---|---|---|---|
+| Retrieval | Vector / Hybrid Search | Fast, scalable candidate selection | Scores are approximate |
+| Re-ranking | Cross-encoder model | High-precision relevance scoring | Slower; runs per candidate |
+
+Re-ranking is most valuable when:
+
+- Retrieval returns many candidates (Top K > 10) and only the top few will be passed to an LLM
+- Query intent is nuanced and the ranking order significantly affects answer quality
+- You are building production RAG pipelines where answer accuracy is critical
+
+## How It Works
+
+1. Receives a list of search results from an upstream search node
+2. Pairs each result's text with the original query
+3. Passes each (query, document) pair through a cross-encoder model
+4. Scores each pair as a single relevance probability
+5. Returns the results sorted by cross-encoder score, highest first
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **Re-Ranker Model** | The cross-encoder model used for scoring | Yes |
+| **Query** | The original search query to compare each result against | Yes |
+| **Results** | The array of search results to re-rank | Yes |
+| **Top N** | Number of top results to return after re-ranking | No |
+| **Score Threshold** | Minimum re-ranker score to include a result | No |
+| **Return Scores** | Whether to include re-ranker scores in the output | No |
+
+## Setting Up the Re-Ranker Node
+
+<Steps>
+
+### Step 1: Add a Search Node
+
+Place a Vector Search Node or Hybrid Search Node earlier in your flow. Set its **Top K** high enough to give the re-ranker a good candidate pool — a value of 20–50 is typical.
+
+### Step 2: Add the Re-Ranker Node
+
+Drag the Re-Ranker Node from the Data section of the node palette and place it directly after the search node.
+
+### Step 3: Select a Re-Ranker Model
+
+Choose a cross-encoder model from the model selector. Lamatic.ai supports the following re-ranker models:
+
+- **Cohere Rerank** — hosted API, high accuracy, supports multilingual content
+- **BGE Re-Ranker** — open-source cross-encoder, strong performance on English content
+- **ms-marco-MiniLM** — lightweight cross-encoder, low latency
+
+<Callout type="info">
+If you are already using Cohere for embeddings, the Cohere Rerank API is the easiest integration. For self-hosted or privacy-sensitive deployments, BGE Re-Ranker is a strong open-source alternative.
+</Callout>
+
+### Step 4: Map the Query Input
+
+Set the **Query** field to the same variable used in the upstream search node:
+
+```
+{{triggerNode_1.output.query}}
+```
+
+### Step 5: Map the Results Input
+
+Set the **Results** field to the output of the search node:
+
+```
+{{vectorSearchNode_1.output.results}}
+```
+
+### Step 6: Set Top N
+
+Set **Top N** to the number of results you want to pass downstream to the LLM. A value of 3–5 is typical for RAG pipelines — re-ranking allows you to retrieve broadly and then select only the most relevant chunks.
+
+<Callout type="warning">
+Setting **Top N** lower than the number of results from the search node is what makes re-ranking valuable. If Top N equals the search node's Top K, you receive all results but in a better order — useful for display, but you are not filtering out low-quality candidates before the LLM.
+</Callout>
+
+</Steps>
+
+## Re-Ranker Models
+
+### Cohere Rerank
+
+Cohere's hosted rerank API accepts a query and a list of documents and returns a relevance score for each. It supports over 100 languages and is optimized for RAG use cases.
+
+- **Latency**: ~200–400 ms for 20 documents
+- **Languages**: Multilingual
+- **Best for**: Production RAG pipelines, multilingual content
+
+### BGE Re-Ranker (BAAI)
+
+The BGE re-ranker is a family of open-source cross-encoder models from BAAI. The `bge-reranker-large` variant offers strong English-language performance comparable to hosted APIs.
+
+- **Latency**: Depends on self-hosted infrastructure
+- **Languages**: English (large), Multilingual (m3)
+- **Best for**: Cost-sensitive or privacy-sensitive deployments
+
+### ms-marco-MiniLM
+
+A lightweight cross-encoder trained on the MS MARCO passage ranking dataset. Very fast inference with slightly lower accuracy than larger models.
+
+- **Latency**: ~50–100 ms for 20 documents
+- **Languages**: English
+- **Best for**: Latency-sensitive applications where a small accuracy trade-off is acceptable
+
+## Output Schema
+
+The Re-Ranker Node returns the re-ordered results array:
+
+| Field | Type | Description |
+|---|---|---|
+| `text` | string | The original text content of the chunk |
+| `rerankerScore` | number | The cross-encoder relevance score (0–1) |
+| `originalScore` | number | The score assigned by the upstream search node |
+| `metadata` | object | Metadata stored with the vector record |
+| `id` | string | Unique identifier of the matched record |
+
+Results are sorted by `rerankerScore` descending. If **Top N** is set, only the top N results are returned.
+
+## Retrieval + Re-Ranking Pipeline
+
+A complete RAG retrieval pipeline using the Re-Ranker Node:
+
+```
+Trigger Node
+  → Vector Search Node (Top K: 30)
+  → Re-Ranker Node (Top N: 5)
+  → LLM Node (context: top 5 re-ranked results)
+  → Response Node
+```
+
+This pattern retrieves 30 broad candidates using fast vector search, then uses the re-ranker to select the 5 most relevant chunks before passing them to the LLM. The LLM receives higher-quality context, which improves the accuracy of the generated answer.
+
+## Best Practices
+
+- **Retrieve broadly, re-rank narrowly**: Use a high Top K (20–50) on the search node and a low Top N (3–5) on the re-ranker. This gives the cross-encoder enough candidates to find the best results while keeping LLM context concise.
+- **Match the re-ranker language to your content**: If your documents are multilingual, use Cohere Rerank or BGE-M3 rather than English-only models.
+- **Set a score threshold for quality control**: Use **Score Threshold** to discard results below a minimum relevance score. A threshold of 0.5 is a reasonable starting point.
+- **Inspect both scores**: Compare `rerankerScore` and `originalScore` in the output. Large differences indicate that the initial retrieval order was significantly off — consider raising Top K to give the re-ranker more candidates.
+- **Use Hybrid Search before re-ranking**: Combining Hybrid Search with re-ranking gives the best retrieval quality. Hybrid Search ensures both semantic and keyword matches are in the candidate pool; the re-ranker then selects the most relevant subset.
+
+## Common Issues
+
+### Re-ranker returns fewer results than Top N
+
+**Cause**: The **Score Threshold** is filtering out results below the minimum score, leaving fewer results than Top N.
+**Fix**: Lower the **Score Threshold** or remove it entirely to allow all candidates through.
+
+### Re-ranking latency is too high
+
+**Cause**: The upstream search node is returning too many candidates (high Top K), increasing the number of (query, document) pairs the cross-encoder must score.
+**Fix**: Reduce the search node's **Top K** to 10–20. The re-ranker's latency scales linearly with the number of candidates.
+
+### Re-ranker scores are all near 0 or all near 1
+
+**Cause**: The query and document texts may be very different in format or length, or the model may not be well-suited to your content domain.
+**Fix**: Try a different re-ranker model or ensure the **Query** field matches the format used during search (e.g., a natural language question rather than a list of keywords).
+
+### Output order is identical to input order
+
+**Cause**: All candidates have the same or very similar re-ranker scores, resulting in no meaningful re-ordering.
+**Fix**: Verify the **Query** field is mapped correctly and contains the actual search query rather than a static string.
+
+## Related Nodes
+
+- **Vector Search Node**: Returns semantic search candidates to feed into the re-ranker.
+- **Hybrid Search Node**: Returns hybrid search candidates. Recommended upstream node for highest retrieval quality.
+- **Vectorize Node**: Converts documents into embeddings for storage and later retrieval.
+- **Index Node**: Stores vectorized embeddings in the vector database.
+- **LLM Node**: Consumes the re-ranked results as context to generate an answer.
