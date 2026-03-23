@@ -122,3 +122,38 @@ Narrow the search scope using metadata filters to avoid searching across irrelev
 - **Hybrid Search Node**: Combines BM25 and vector search for the best of both approaches.
 - **Re-Ranker Node**: Re-orders search results using a cross-encoder for higher precision.
 - **Index Node**: Stores vectorized content in the database that this node searches.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "What is the difference between keyword search and vector search?",
+    answer: "Keyword search matches the exact terms in your query, while vector search finds results that are semantically or conceptually similar. The Keyword Search Node uses the BM25 algorithm for this, which does not require a separate embedding model. This makes it faster and more efficient for queries that depend on specific, precise words."
+  },
+  {
+    question: "For which types of queries is the Keyword Search Node most effective?",
+    answer: "This node is most effective for queries containing specific identifiers that must be matched exactly, such as product names, SKUs, error codes, or function names. It excels when you need to find documents containing precise terms rather than conceptually related topics. You can narrow results further using the metadata filter option."
+  },
+  {
+    question: "How does the BM25 algorithm determine which documents are most relevant?",
+    answer: "The BM25 algorithm ranks documents by scoring how relevant they are to the query terms. This score is primarily based on term frequency (how often a term appears in a document) and inverse document frequency (how rare the term is across all documents). It also adjusts the score to avoid unfairly favoring very long documents."
+  },
+  {
+    question: "Do I need to configure an embedding model for the Keyword Search Node?",
+    answer: "No, the Keyword Search Node does not require an embedding model because it works by matching the exact text of your query. It analyzes term frequency and rarity directly within the indexed content. This contrasts with vector search nodes, which do depend on embedding models to understand semantic meaning."
+  },
+  {
+    question: "What does the BM25 score represent and how should I set a score threshold?",
+    answer: "The BM25 score is a numerical value representing a document's relevance to the query, with higher scores being more relevant. You can use the score threshold to exclude results below a certain relevance level, but it is often best to start without a threshold. The ideal threshold value depends on your specific dataset and query patterns."
+  },
+  {
+    question: "Why might my keyword search not return any results from my vector database?",
+    answer: "A common reason for empty results is that the selected vector database does not have full-text indexing enabled on the target field. The node requires this specific type of index to perform BM25 searches effectively. Check your database configuration to ensure it is properly set up for keyword-based retrieval."
+  },
+  {
+    question: "Is it possible to use the Keyword Search Node and a vector search node together?",
+    answer: "Yes, using both nodes in a single flow is a common and effective pattern for creating hybrid search. The Keyword Search Node can handle queries where precise terms are important, while a vector search node can find results based on conceptual similarity. This allows you to leverage the strengths of both retrieval methods for more comprehensive results."
+  }
+]} />
