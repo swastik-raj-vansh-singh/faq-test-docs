@@ -123,3 +123,38 @@ To scrape multiple pages starting from a root URL, set **Max Depth** to 1 or 2. 
 - **Text Splitter Node**: Chunk the scraped content into smaller pieces before vectorization.
 - **Vectorize Node**: Convert the extracted text into embeddings for storage in a vector database.
 - **Index Node**: Store the vectorized content in your vector database for later retrieval.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "When should I use a CSS selector versus the automatic content detection?",
+    answer: "The automatic detection is best for general articles, but you should use a CSS selector when you need precise control over the extracted content. A selector like \"div#main-content\" lets you target a specific element, ignoring sidebars, ads, and other noise. If your output contains too much irrelevant text, using a specific selector is the most reliable solution."
+  },
+  {
+    question: "How do I scrape content from pages that load dynamically with JavaScript?",
+    answer: "To scrape dynamic pages, you must set the \"Wait For\" parameter to give the page time to load its content. Try a value like 2000 or 3000 milliseconds to allow JavaScript to execute and render the final HTML. Static HTML pages do not require this setting, and adding an unnecessary delay will slow down your flow."
+  },
+  {
+    question: "What is recursive scraping and how does the Max Depth setting work?",
+    answer: "Recursive scraping follows links on the starting URL to scrape additional pages automatically. The \"Max Depth\" setting controls how many levels deep it will go; a depth of 1 scrapes the initial page and all pages it links to directly. Use this setting with caution, as it can significantly increase the number of pages processed and the execution time."
+  },
+  {
+    question: "Why is the scraper returning a login page instead of the real content?",
+    answer: "The scraper returns a login page because the target site requires authentication to view the content. You can often bypass this by passing authentication cookies or an \"Authorization\" token in the \"Headers\" configuration field. Some sites may also require a common \"User-Agent\" header to grant access."
+  },
+  {
+    question: "What's the best way to handle long text extracted from a web page?",
+    answer: "Very long text from a single page should be broken into smaller, more manageable pieces for downstream processing. Pass the output of the Web Scraper Node directly into a [Text Splitter Node] to create chunks of a consistent size. This is a critical step before sending data to the [Vectorize Node]."
+  },
+  {
+    question: "Can the Web Scraper Node read local HTML files, or only live URLs?",
+    answer: "The Web Scraper Node is designed exclusively for live web URLs and cannot access local files. To process content from local HTML, TXT, or PDF files on your disk, you should use the [File Loader Node] instead. It provides a similar function for file-based data sources."
+  },
+  {
+    question: "How can I prevent the node from extracting irrelevant text like navigation bars or footers?",
+    answer: "The most effective way to remove irrelevant text is by providing a specific CSS selector in the node's configuration. Use your browser's developer tools to find the selector for the main content area, such as \"article.post\" or \"div.story-body\". This tells the node to ignore everything outside of that specific container."
+  }
+]} />
