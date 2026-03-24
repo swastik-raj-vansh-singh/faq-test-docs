@@ -1,0 +1,159 @@
+---
+title: Data Mapper Node
+description: Learn how to use the Data Mapper Node in Lamatic.ai to transform, reshape, and map data between nodes in your flow.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Data Mapper Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Data Mapper Node transforms and reshapes data as it moves between nodes in your flow. It allows you to rename fields, extract nested values, combine multiple inputs into a single structure, and apply simple expressions to format data before passing it downstream.
+
+## How It Works
+
+The Data Mapper Node takes one or more input variables from preceding nodes and produces a new output object with the structure you define. Each output field is mapped to an expression that can reference any upstream node's output, apply string operations, or use conditional logic.
+
+This is especially useful when:
+
+- Two nodes have incompatible output/input schemas
+- You need to extract a deeply nested field into a top-level variable
+- You want to combine outputs from multiple nodes into a single object
+- You need to apply formatting (e.g., lowercase, trim, concatenate) before passing data forward
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **Input Variables** | Variables from upstream nodes to use as source data | Yes |
+| **Output Schema** | The shape of the output object you want to produce | Yes |
+| **Field Mappings** | Mapping expressions that connect input fields to output fields | Yes |
+| **Default Values** | Fallback values when a source field is null or missing | No |
+
+## Setting Up the Data Mapper Node
+
+<Steps>
+
+### Step 1: Add the Data Mapper Node
+
+Drag the Data Mapper Node from the Data section of the node palette into your flow. Place it between the nodes that need data transformation.
+
+### Step 2: Select Input Variables
+
+Choose which upstream node outputs you want to use as inputs. You can select multiple nodes to combine their outputs.
+
+### Step 3: Define the Output Schema
+
+Specify the fields your output object should have. For each field, set the name and expected data type:
+
+```json
+{
+  "user_query": "string",
+  "document_count": "number",
+  "sources": "array",
+  "include_metadata": "boolean"
+}
+```
+
+### Step 4: Write Field Mappings
+
+Map each output field to an input expression:
+
+```
+user_query    → {{triggerNode_1.output.question}}
+document_count → {{vectorSearchNode_1.output.results.length}}
+sources       → {{vectorSearchNode_1.output.results.map(r => r.metadata.source)}}
+include_metadata → true
+```
+
+<Callout type="info">
+Mapping expressions support JavaScript syntax. You can use string methods like `.toLowerCase()`, `.trim()`, array methods like `.map()`, `.filter()`, and ternary operators for conditional logic.
+</Callout>
+
+### Step 5: Set Default Values (Optional)
+
+For fields that may be null or undefined, provide fallback values:
+
+```
+user_query    → default: ""
+document_count → default: 0
+sources       → default: []
+```
+
+<Callout type="warning">
+If a source field is missing and no default value is set, the output field will be `undefined`. This can cause errors in downstream nodes that expect a value. Always set defaults for optional fields.
+</Callout>
+
+</Steps>
+
+## Output Schema
+
+The output schema is entirely defined by you. Whatever fields you configure in the mapping become the output of this node. For example:
+
+| Field | Type | Description |
+|---|---|---|
+| `user_query` | string | The cleaned and formatted user query |
+| `document_count` | number | Number of documents retrieved |
+| `sources` | array | List of source identifiers from retrieved documents |
+| `include_metadata` | boolean | Flag for whether to include metadata downstream |
+
+## Common Mapping Patterns
+
+### Flatten nested objects
+
+```
+full_name → {{apiNode_1.output.data.user.profile.name}}
+```
+
+### Concatenate fields
+
+```
+display_label → {{codeNode_1.output.title}} + " (" + {{codeNode_1.output.category}} + ")"
+```
+
+### Conditional mapping
+
+```
+status → {{codeNode_1.output.score}} > 0.8 ? "relevant" : "low_relevance"
+```
+
+### Extract from arrays
+
+```
+top_result → {{vectorSearchNode_1.output.results[0].text}}
+```
+
+## Best Practices
+
+- **Keep mappings simple**: If a mapping expression is getting complex with multiple operations, consider using a Code Node instead for better readability and debuggability.
+- **Always set default values**: Missing fields cause silent downstream failures. Explicit defaults make your flow resilient to unexpected input shapes.
+- **Name output fields clearly**: Use descriptive names that make it obvious what the field contains. `query` is ambiguous; `user_search_query` is clear.
+- **Use the test panel**: Run test data through the node and inspect the output to verify your mappings produce the expected structure before connecting downstream nodes.
+- **Document complex mappings**: If a mapping uses conditional logic or array transformations, add a comment in the node description explaining what it does and why.
+
+## Common Issues
+
+### Output field is undefined
+
+**Cause**: The source expression references a field that doesn't exist in the upstream node's output, and no default value is set.
+**Fix**: Check the upstream node's actual output schema using the test panel. Update the expression to match the correct field path, and add a default value as a safety net.
+
+### Type mismatch error in downstream node
+
+**Cause**: A downstream node expects a string but the mapping produces a number, or expects an array but receives a single object.
+**Fix**: Use explicit type conversion in the mapping expression, e.g., `String({{node.output.count}})` or wrap a single value in an array: `[{{node.output.item}}]`.
+
+### Mapping works in test but fails in production
+
+**Cause**: Test data has a different shape than production data. For example, a field that always exists in test data is sometimes missing in real webhook payloads.
+**Fix**: Add default values for every field that could potentially be absent. Test with minimal and edge-case payloads, not just the happy path.
+
+## Related Nodes
+
+- **Code Node**: For complex transformations that go beyond simple field mapping, use a Code Node with full JavaScript support.
+- **Text Splitter Node**: Use before the Data Mapper if you need to split content and then reshape the chunks.
+- **Vector Search Node**: A common upstream node whose results are reshaped by the Data Mapper before passing to an LLM.
+- **File Loader Node**: Extract and remap fields from loaded file metadata.
