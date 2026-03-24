@@ -1,0 +1,170 @@
+---
+title: Summarizer Node
+description: Learn how to use the Summarizer Node in Lamatic.ai to condense large documents or retrieved chunks into concise summaries using an LLM.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Summarizer Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Summarizer Node condenses long documents, retrieved chunks, or any text input into a concise summary using a large language model (LLM). It is commonly used in RAG pipelines to compress retrieved context before passing it to a generation node, or as a standalone step to produce human-readable summaries from large documents.
+
+## How It Works
+
+The Summarizer Node sends your input text to a configured LLM along with a summarization instruction. The model returns a shorter version of the content that preserves the most important information. For very long inputs that exceed the model's context window, the node automatically uses a map-reduce strategy — summarizing chunks individually and then combining the results.
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **LLM Model** | The language model used for summarization | Yes |
+| **Input Text** | The text or variable to summarize | Yes |
+| **Max Output Tokens** | Maximum length of the generated summary | No |
+| **Summary Style** | `concise`, `detailed`, or `bullet-points` | No |
+| **Custom Prompt** | Override the default summarization instruction | No |
+| **Strategy** | `stuffing` for short inputs, `map-reduce` for long inputs | No |
+
+## Setting Up the Summarizer Node
+
+<Steps>
+
+### Step 1: Add the Summarizer Node
+
+Drag the Summarizer Node from the Data section of the node palette into your flow. Place it after a document source or search node.
+
+### Step 2: Select an LLM Model
+
+Choose the LLM you want to use for summarization. More capable models produce higher-quality summaries but consume more tokens.
+
+<Callout type="info">
+For cost-efficiency on high-volume summarization tasks, consider using a smaller, faster model like Claude Haiku. Reserve larger models for cases where summary quality is critical.
+</Callout>
+
+### Step 3: Map the Input Text
+
+Set the input text field to the variable containing the content you want to summarize:
+
+```
+{{vectorSearchNode_1.output.results}}
+```
+
+Or for a full document from the File Loader:
+
+```
+{{fileLoaderNode_1.output.text}}
+```
+
+### Step 4: Choose a Summary Style
+
+Select how the output should be structured:
+
+- **Concise**: A short paragraph capturing the key points. Best for chat and Q&A flows.
+- **Detailed**: A longer summary preserving most of the original detail. Best for reports.
+- **Bullet-points**: A list of key takeaways. Best for dashboards or quick reviews.
+
+### Step 5: Set Max Output Tokens (Optional)
+
+Limit the length of the summary to control cost and ensure the output fits downstream nodes. For concise summaries, 150–300 tokens is a good range.
+
+### Step 6: Use a Custom Prompt (Optional)
+
+Override the default summarization prompt if you need domain-specific behavior:
+
+```
+Summarize the following legal document in plain English, highlighting any obligations and deadlines:
+
+{{input}}
+```
+
+</Steps>
+
+## Summarization Strategies
+
+| Strategy | When to Use | How It Works |
+|---|---|---|
+| Stuffing | Input fits within the model's context window | Sends the entire text in a single prompt |
+| Map-Reduce | Input is too long for a single prompt | Splits into chunks, summarizes each, then combines |
+
+<Callout type="warning">
+The map-reduce strategy increases LLM calls and cost proportionally to document length. For documents over 50 pages, consider splitting or filtering content upstream to reduce the volume passed to this node.
+</Callout>
+
+## Output Schema
+
+| Field | Type | Description |
+|---|---|---|
+| `summary` | string | The generated summary text |
+| `input_tokens` | number | Number of tokens in the input |
+| `output_tokens` | number | Number of tokens in the generated summary |
+| `strategy_used` | string | Whether `stuffing` or `map-reduce` was applied |
+
+## Best Practices
+
+- **Summarize after retrieval, not before indexing**: Summaries lose detail. Index the original chunks and summarize only the retrieved results at query time.
+- **Use bullet-points for multi-document inputs**: When summarizing several retrieved chunks at once, bullet-point style avoids blending unrelated content into a single confusing paragraph.
+- **Write domain-specific prompts**: The default prompt is general-purpose. For legal, medical, or technical content, a custom prompt produces significantly better summaries.
+- **Cap output tokens**: Setting a max token limit prevents runaway outputs and keeps costs predictable.
+- **Test with edge cases**: Check behavior on very short inputs (one sentence) and very long inputs to ensure the strategy selection and output quality hold up.
+
+## Common Issues
+
+### Summary is too vague or generic
+
+**Cause**: The default prompt does not have enough context about the domain or desired level of detail.
+**Fix**: Write a custom prompt that specifies the domain, desired length, and focus areas.
+
+### Summary cuts off mid-sentence
+
+**Cause**: Max output tokens is set too low for the content length.
+**Fix**: Increase the max output tokens, or reduce the input size by filtering or pre-chunking upstream.
+
+### Map-reduce summaries feel disconnected
+
+**Cause**: Individual chunk summaries are combined without enough context about how they relate.
+**Fix**: Add a combining prompt that instructs the model to synthesize the chunk summaries into a coherent whole rather than just listing them.
+
+## Related Nodes
+
+- **File Loader Node**: Loads raw documents that are then passed to this node for summarization.
+- **Vector Search Node**: Retrieves relevant chunks that can be summarized before passing to an LLM generation node.
+- **Text Splitter Node**: Splits large documents into chunks, which can be individually summarized using the map-reduce strategy.
+- **Re-Ranker Node**: Re-orders retrieved chunks by relevance before summarization to ensure the most important content is included.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "When should I use the Summarizer Node instead of passing text directly to an LLM node?",
+    answer: "Use the Summarizer Node when your input text is too long to fit in the LLM's context window, or when you want to reduce token costs by compressing retrieved chunks before generation. If your retrieved content already fits comfortably within the context window and you want the LLM to reason over the full detail, passing it directly is fine."
+  },
+  {
+    question: "What is the difference between the stuffing and map-reduce strategies?",
+    answer: "Stuffing sends the entire input text in a single prompt, which is fast and produces a coherent summary but only works when the input fits within the model's context window. Map-reduce splits the input into chunks, summarizes each chunk separately, and then combines those summaries into a final output. Map-reduce handles arbitrarily long documents but uses more LLM calls and costs more."
+  },
+  {
+    question: "Can I control the format of the summary output?",
+    answer: "Yes, you can choose a summary style — concise, detailed, or bullet-points — from the configuration panel. For more precise control over structure, tone, or domain-specific requirements, you can write a custom prompt that describes exactly what you want the model to produce."
+  },
+  {
+    question: "Does summarization affect the quality of my RAG pipeline?",
+    answer: "It can, depending on where you apply it. Summarizing retrieved chunks before passing them to a generation node can help the model focus on key information, but it may also discard details needed to answer specific questions. A common best practice is to retrieve more chunks than you need, re-rank them, and then summarize only the top results."
+  },
+  {
+    question: "Which LLM model should I choose for summarization?",
+    answer: "For most use cases, a mid-tier model offers the best balance of quality and cost. Smaller, faster models like Claude Haiku work well for straightforward summarization tasks at high volume. Larger models are better suited for complex or domain-specific documents where nuance and accuracy matter more than speed."
+  },
+  {
+    question: "Can the Summarizer Node handle multiple documents at once?",
+    answer: "Yes, you can pass an array of text chunks or documents as the input. The node will treat all input as a single body of text to summarize. For multi-document inputs, the bullet-points style often works best since it keeps distinct pieces of information separate rather than merging them into a single narrative."
+  },
+  {
+    question: "How do I prevent important details from being dropped in the summary?",
+    answer: "The best approach is to write a custom prompt that explicitly tells the model what kinds of information must be retained — for example, dates, names, obligations, or numerical values. You can also increase the max output tokens to give the model more room to include detail, or switch from concise to detailed style."
+  }
+]} />
