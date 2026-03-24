@@ -1,0 +1,125 @@
+---
+title: Web Scraper Node
+description: Learn how to use the Web Scraper Node in Lamatic.ai to extract content from web pages for use in RAG pipelines and knowledge bases.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Web Scraper Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Web Scraper Node fetches and extracts clean text content from web pages. It handles HTML parsing, removes navigation elements, ads, and boilerplate, and returns structured text that can be passed to downstream nodes for chunking, vectorization, or direct use in LLM prompts.
+
+## How It Works
+
+When given a URL, the Web Scraper Node:
+
+1. Sends an HTTP request to the target page
+2. Parses the HTML response
+3. Extracts the main content area while stripping scripts, styles, navigation, footers, and other non-content elements
+4. Returns the cleaned text along with metadata such as the page title, URL, and extraction timestamp
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **URL** | The web page URL to scrape | Yes |
+| **Selector** | CSS selector to target a specific section of the page | No |
+| **Wait For** | Time in milliseconds to wait for dynamic content to load | No |
+| **Include Links** | Whether to preserve hyperlinks in the extracted text | No |
+| **Max Depth** | Number of levels to follow links for recursive scraping | No |
+| **Headers** | Custom HTTP headers to send with the request | No |
+
+## Setting Up the Web Scraper Node
+
+<Steps>
+
+### Step 1: Add the Web Scraper Node
+
+Drag the Web Scraper Node from the Data section of the node palette into your flow. Place it at the beginning of your pipeline where you need external web content.
+
+### Step 2: Set the URL
+
+Map the URL field to a static value or a dynamic variable from a preceding node:
+
+```
+{{triggerNode_1.output.url}}
+```
+
+### Step 3: Use a CSS Selector (Optional)
+
+If you only need content from a specific part of the page, provide a CSS selector:
+
+```
+article.main-content
+```
+
+This avoids pulling in sidebar content, headers, and footers that would add noise to your pipeline.
+
+<Callout type="info">
+If no selector is provided, the node uses automatic content detection to identify and extract the main content area of the page.
+</Callout>
+
+### Step 4: Configure Wait Time for Dynamic Pages (Optional)
+
+For pages that load content dynamically via JavaScript, set a wait time (e.g., 3000ms) to allow the page to fully render before extraction.
+
+<Callout type="warning">
+Static HTML pages do not need a wait time. Only enable this for single-page applications or pages that load content via JavaScript after the initial page load. Unnecessary wait times slow down your flow.
+</Callout>
+
+### Step 5: Set Recursive Scraping (Optional)
+
+To scrape multiple pages starting from a root URL, set **Max Depth** to 1 or 2. The node will follow links on the page and scrape those as well. Use this cautiously — each additional level multiplies the number of pages scraped.
+
+</Steps>
+
+## Output Schema
+
+| Field | Type | Description |
+|---|---|---|
+| `text` | string | The extracted text content of the page |
+| `title` | string | The page title from the HTML `<title>` tag |
+| `url` | string | The URL that was scraped |
+| `metadata` | object | Additional metadata including extraction timestamp and content length |
+| `links` | array | List of links found on the page (if Include Links is enabled) |
+
+## Best Practices
+
+- **Use CSS selectors for precision**: Targeting a specific content container avoids pulling in navigation, sidebars, and footer text that pollutes your data.
+- **Respect rate limits**: When scraping multiple pages, add reasonable delays between requests. Aggressive scraping can get your IP blocked by the target site.
+- **Validate extracted content**: Always inspect the output before indexing. Some pages return login walls, cookie banners, or error pages instead of actual content.
+- **Combine with Text Splitter**: Web pages can be long. Pass the extracted text through a Text Splitter Node before vectorization to get properly sized chunks.
+- **Cache results when possible**: If the source content doesn't change frequently, store the scraped content rather than re-scraping on every flow execution.
+
+## Common Issues
+
+### Extracted text is empty or contains only boilerplate
+
+**Cause**: The page loads its main content dynamically via JavaScript after the initial HTML response.
+**Fix**: Increase the **Wait For** value to allow JavaScript to execute and content to render before extraction.
+
+### Scraper returns a login page or access denied message
+
+**Cause**: The target site requires authentication or blocks automated requests.
+**Fix**: Add authentication cookies or tokens in the **Headers** field. Some sites also block requests without a realistic `User-Agent` header.
+
+### Too much irrelevant content in the output
+
+**Cause**: No CSS selector is set, and the automatic content detection is picking up sidebars, navigation, or comments.
+**Fix**: Inspect the page structure in your browser's developer tools and provide a specific CSS selector that targets only the main content area.
+
+### Recursive scraping takes too long or returns too many pages
+
+**Cause**: Max Depth is set too high, causing the node to follow hundreds of links.
+**Fix**: Reduce Max Depth to 1 and use a more targeted starting URL. Consider filtering links by pattern if the node supports it.
+
+## Related Nodes
+
+- **File Loader Node**: Use instead of Web Scraper when your source documents are local files rather than web pages.
+- **Text Splitter Node**: Chunk the scraped content into smaller pieces before vectorization.
+- **Vectorize Node**: Convert the extracted text into embeddings for storage in a vector database.
+- **Index Node**: Store the vectorized content in your vector database for later retrieval.
