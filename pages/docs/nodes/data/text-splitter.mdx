@@ -1,0 +1,159 @@
+---
+title: Text Splitter Node
+description: Learn how to use the Text Splitter Node in Lamatic.ai to chunk large documents into smaller pieces before vectorization and indexing.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Text Splitter Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Text Splitter Node breaks large documents into smaller, overlapping chunks before they are passed to the Vectorize and Index nodes. Chunking is a critical step in any RAG pipeline — embedding models have token limits, and retrieving smaller, focused chunks improves the relevance of search results.
+
+## How It Works
+
+When a document is too long to be embedded as a whole, it must be split into chunks that:
+
+- Fit within the embedding model's token limit
+- Are small enough to be precise when retrieved
+- Overlap slightly so no context is lost at chunk boundaries
+
+The Text Splitter Node splits text using a configurable strategy and passes each chunk downstream as a separate item.
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **Text** | The input text or document to split | Yes |
+| **Chunk Size** | Maximum number of tokens or characters per chunk | Yes |
+| **Chunk Overlap** | Number of tokens or characters to overlap between chunks | No |
+| **Split Strategy** | How to split: `recursive`, `sentence`, `paragraph`, or `fixed` | No |
+| **Separator** | Custom separator string used for splitting (for fixed strategy) | No |
+
+## Setting Up Text Splitter
+
+<Steps>
+
+### Step 1: Add the Text Splitter Node
+
+Drag the Text Splitter Node from the Data section of the node palette into your flow. Place it after your document source (e.g., File Loader Node) and before the Vectorize Node.
+
+### Step 2: Map the Text Input
+
+Set the text field to the variable containing the raw document content:
+
+```
+{{fileLoaderNode_1.output.text}}
+```
+
+### Step 3: Set Chunk Size
+
+Choose a chunk size appropriate for your embedding model. Most models support up to 512 or 8192 tokens. A chunk size of 300–500 tokens typically gives good retrieval precision.
+
+<Callout type="warning">
+Do not set the chunk size larger than the token limit of your embedding model. Oversized chunks will be truncated, causing silent data loss during vectorization.
+</Callout>
+
+### Step 4: Set Chunk Overlap
+
+Set an overlap of 10–20% of your chunk size. For example, if chunk size is 400 tokens, an overlap of 50–80 tokens preserves context at chunk boundaries.
+
+### Step 5: Choose a Split Strategy
+
+Select the strategy that best fits your content type:
+
+- **Recursive**: Tries to split on paragraphs, then sentences, then words. Best for general-purpose text.
+- **Sentence**: Splits on sentence boundaries. Good for narrative or conversational content.
+- **Paragraph**: Splits on paragraph breaks. Good for structured documents.
+- **Fixed**: Splits at exact character or token counts. Use when structure doesn't matter.
+
+</Steps>
+
+## Output Schema
+
+The Text Splitter Node outputs an array of chunk objects:
+
+| Field | Type | Description |
+|---|---|---|
+| `text` | string | The text content of the chunk |
+| `index` | number | The position of the chunk in the original document |
+| `metadata` | object | Metadata passed through from the input, plus chunk index |
+
+## Split Strategies Compared
+
+| Strategy | Best For | Preserves Structure |
+|---|---|---|
+| Recursive | General documents, mixed content | Yes |
+| Sentence | Conversational or narrative text | Partially |
+| Paragraph | Reports, articles, documentation | Yes |
+| Fixed | Logs, code, structured data | No |
+
+## Best Practices
+
+- **Use recursive splitting by default**: It handles most content types gracefully and avoids cutting mid-sentence.
+- **Keep chunks focused**: Smaller chunks (200–400 tokens) tend to produce more precise retrieval results than large ones.
+- **Always use overlap**: A 10–15% overlap ensures that sentences or facts split at chunk boundaries are still retrievable from either chunk.
+- **Pass metadata through**: Include source file name, page number, or section title in the metadata so downstream nodes can filter or display context alongside results.
+- **Test chunk quality**: Use the test panel to inspect how your document is being split before indexing. Poor splits are a common source of bad RAG results.
+
+## Common Issues
+
+### Chunks are cut mid-sentence
+
+**Cause**: Using the fixed strategy with a character count that does not align with sentence boundaries.
+**Fix**: Switch to the recursive or sentence strategy, which respects natural language boundaries.
+
+### Too many small chunks being created
+
+**Cause**: Chunk size is set too low for the content.
+**Fix**: Increase chunk size. For most prose content, 300–500 tokens is a good starting range.
+
+### Context is lost between retrieved chunks
+
+**Cause**: Chunk overlap is set to zero or too low.
+**Fix**: Increase chunk overlap to 10–20% of the chunk size to ensure boundary context is preserved.
+
+## Related Nodes
+
+- **File Loader Node**: Loads files and extracts raw text, which is then passed to this node for splitting.
+- **Vectorize Node**: Converts text chunks into embeddings. Always place after the Text Splitter Node.
+- **Index Node**: Stores vectorized chunks in your vector database.
+- **Vector Search Node**: Retrieves the most relevant chunks at query time.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "Why do I need to split documents before vectorizing them?",
+    answer: "Embedding models have a maximum token limit, so documents that exceed this limit cannot be embedded as a whole. Splitting also improves retrieval quality — when a user asks a question, a short focused chunk is much more likely to be relevant than a full 50-page document. Smaller chunks give your search nodes more precision."
+  },
+  {
+    question: "What chunk size should I use?",
+    answer: "A chunk size of 300–500 tokens works well for most use cases. Smaller chunks give higher retrieval precision but may lack enough context for the LLM to generate a good answer. Larger chunks preserve more context but reduce retrieval precision. Start at 400 tokens and adjust based on the quality of your search results."
+  },
+  {
+    question: "What is chunk overlap and why does it matter?",
+    answer: "Chunk overlap means the end of one chunk and the start of the next chunk share some content. This prevents information from being lost when a sentence or key fact happens to fall at a chunk boundary. Without overlap, a query about that exact sentence may not retrieve either chunk reliably. A 10–15% overlap is a good default."
+  },
+  {
+    question: "Which split strategy should I choose?",
+    answer: "The recursive strategy is the best default for most documents — it tries to split on paragraphs first, then sentences, then words, preserving natural language boundaries as much as possible. Use the sentence strategy for conversational or narrative content, the paragraph strategy for structured reports, and fixed only when you specifically need exact character-count control."
+  },
+  {
+    question: "Does the Text Splitter Node preserve the original document metadata?",
+    answer: "Yes, any metadata you pass into the node is preserved in each chunk's output. This means you can attach a source filename, URL, or page number to the input and it will appear in every chunk that gets indexed. This is important for citing sources in your LLM responses."
+  },
+  {
+    question: "Can I use the Text Splitter Node with non-English content?",
+    answer: "Yes, the recursive and sentence strategies work with most languages that use standard punctuation for sentence boundaries. For languages without clear sentence delimiters, the paragraph or fixed strategy may give more predictable results. Ensure your embedding model also supports the language of your content."
+  },
+  {
+    question: "What happens if my chunk size is larger than my embedding model's token limit?",
+    answer: "If a chunk exceeds the embedding model's token limit, the model will silently truncate the chunk before generating the embedding. This means the end of the chunk is not represented in the vector, which can degrade retrieval quality. Always set the chunk size to be safely within your embedding model's token limit."
+  }
+]} />
