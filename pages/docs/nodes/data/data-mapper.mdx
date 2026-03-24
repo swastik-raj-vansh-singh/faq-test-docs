@@ -157,3 +157,38 @@ top_result → {{vectorSearchNode_1.output.results[0].text}}
 - **Text Splitter Node**: Use before the Data Mapper if you need to split content and then reshape the chunks.
 - **Vector Search Node**: A common upstream node whose results are reshaped by the Data Mapper before passing to an LLM.
 - **File Loader Node**: Extract and remap fields from loaded file metadata.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "What is the difference between the Data Mapper Node and the Code Node?",
+    answer: "The Data Mapper is designed for simple, direct transformations like renaming fields, concatenating strings, or extracting nested values. If you need more complex logic, such as multi-line functions, loops, or external library calls, you should use the Code Node, which provides a full JavaScript environment. See the [Code Node] docs for more details."
+  },
+  {
+    question: "How should I handle missing or null data from an input variable?",
+    answer: "You should use the \"Default Values\" configuration option for any input field that might be missing or null. This ensures the output field receives a fallback value, such as an empty string or zero, instead of becoming `undefined`. Setting defaults is crucial for preventing errors in downstream nodes that expect a value to be present."
+  },
+  {
+    question: "Can the Data Mapper combine data from several different nodes at once?",
+    answer: "Yes, the Data Mapper can combine data from multiple upstream nodes into a single, unified output object. In the node's configuration, you can select several different nodes as \"Input Variables\". Your field mapping expressions can then access the outputs from any of those selected nodes to build the new structure."
+  },
+  {
+    question: "How do I flatten a deeply nested object into a simple field?",
+    answer: "To flatten a nested object, you map a new output field directly to the nested value's path using dot notation. For example, a mapping expression like `{{apiNode_1.output.data.user.profile.name}}` will extract the deeply nested name. This creates a top-level field in your new object, making the data easier to access for downstream nodes."
+  },
+  {
+    question: "Is it possible to conditionally map a field based on some logic?",
+    answer: "You can use JavaScript ternary operators for simple conditional logic directly within a mapping expression. For example, the expression `{{codeNode_1.output.score}} > 0.8 ? \"relevant\" : \"low_relevance\"` will set an output field to one of two different strings. This is useful for creating status flags or categories based on input data."
+  },
+  {
+    question: "Why is a downstream node reporting a type mismatch error?",
+    answer: "A type mismatch error usually means the Data Mapper is producing a data type that the next node in the flow does not expect. You can fix this by using explicit type conversions in your mapping, such as wrapping a number with `String()` to convert it to a string. Always verify the expected input schema of the downstream node."
+  },
+  {
+    question: "What kinds of expressions and functions can I use in field mappings?",
+    answer: "Field mappings support JavaScript expressions, including common string methods like `.toLowerCase()` and `.trim()`. You can also use array methods like `.map()` and `.filter()` to reshape arrays, or access specific array elements using an index like `[0]`. For more complex operations, you should use a [Code Node]."
+  }
+]} />
