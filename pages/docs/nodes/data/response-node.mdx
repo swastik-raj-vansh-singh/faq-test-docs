@@ -1,0 +1,81 @@
+---
+title: Response Node
+description: Learn how to shape HTTP responses from Lamatic flows so webhook callers receive JSON, status codes, and headers in a predictable way.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Response Node
+
+<SectionRows section="Node Type" chips={["Output"]} />
+
+The Response Node defines what your flow returns to clients that triggered it over HTTP (for example a Webhook Trigger or API integration). It maps the final payload, optional status code, and headers so callers like GitHub Actions or your backend can parse the body reliably.
+
+## How It Works
+
+1. Upstream nodes produce structured data (objects, arrays, or primitives).
+2. The Response Node selects which fields to expose and how to serialize them (typically JSON).
+3. When the flow finishes synchronously, the HTTP response body contains that payload.
+4. Clients read `status`, `faqs`, `file_path`, or whatever keys your flow outputs.
+
+## Configuration
+
+| Setting | Description |
+|---|---|
+| **Body / output mapping** | Which node output becomes the response body (often the last Code Node or LLM node) |
+| **Status code** | HTTP status such as 200 for success, 400 for validation errors, 500 for unexpected failures |
+| **Headers** | Optional `Content-Type`, `Cache-Control`, or custom headers |
+
+<Callout type="info">
+For GitHub Actions that `curl` your webhook, return **200** with a JSON body when work succeeded, even if the logical result is `skipped`, so the Action does not treat the HTTP call as a hard failure unless you intend to fail the job.
+</Callout>
+
+## JSON Shape Conventions
+
+A consistent schema helps the Action parse with `jq`:
+
+```json
+{
+  "status": "success",
+  "file_path": "pages/docs/guide.mdx",
+  "title": "Guide",
+  "faq_count": 7,
+  "faqs": [
+    { "question": "What is X?", "answer": "X is ..." }
+  ]
+}
+```
+
+Use `status` values like `success`, `skipped`, or `error` and always include a human-readable `reason` when skipping or failing.
+
+## Error Responses
+
+When validation fails early, you can still return 200 with `status: "error"` and an `error` or `validation_error` field, or return 4xx/5xx if the caller should retry or alert. Align this with how your GitHub workflow interprets HTTP status codes.
+
+## Timeouts
+
+Long-running flows (LLM generation, many API calls) may exceed the caller timeout. Keep critical paths under the client limit or split into async patterns. Document the maximum expected duration for integrators.
+
+## Example: FAQ Generation Handoff
+
+<Steps>
+### Step 1
+Run parsing, length checks, and LLM nodes to produce `faqs` and metadata.
+
+### Step 2
+Use a Code Node to build a single `output` object with `status`, `title`, `file_path`, `faqs`, and `faq_count`.
+
+### Step 3
+Wire the Response Node to that object so the webhook HTTP response matches what your GitHub Action expects.
+</Steps>
+
+## Limitations
+
+- Very large bodies may hit platform limits; prefer returning references (URLs, IDs) for huge payloads.
+- Binary responses need appropriate encoding and headers; JSON is the default for automation.
+
+## Related
+
+See **Webhook Trigger** for how requests enter the flow and **Code Node** for assembling the final response object before the Response Node.
