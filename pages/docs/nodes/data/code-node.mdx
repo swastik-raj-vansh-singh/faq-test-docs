@@ -1,0 +1,89 @@
+---
+title: Code Node
+description: Learn how to use the Code Node in Lamatic.ai to run custom JavaScript for transforming data, validating inputs, and building dynamic outputs in your flows.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Code Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Code Node runs custom JavaScript inside your Lamatic flow. Use it when built-in nodes cannot express your logic: parsing strings, merging objects, filtering arrays, computing derived fields, or preparing payloads for API nodes and LLM prompts.
+
+## How It Works
+
+When the Code Node executes:
+
+1. The runtime injects upstream outputs as variables you reference with Lamatic template syntax (for example `{{previousNode.output.field}}`).
+2. Your script runs in a sandboxed JavaScript environment with standard language features.
+3. You assign the final payload to `output` — that object becomes the node output for downstream nodes.
+
+## Writing Your Script
+
+Every Code Node script must set `output` to a plain object (or array, depending on what downstream nodes expect). You can read values from earlier nodes that were inlined when the flow was compiled.
+
+```javascript
+const items = {{listNode.output.items}};
+const filtered = items.filter(function (x) { return x.active === true; });
+output = { items: filtered, count: filtered.length };
+```
+
+<Callout type="info">
+Keep scripts small and focused. For very large transformations, consider splitting logic across multiple Code Nodes or moving heavy work to a dedicated API you call with the API Node.
+</Callout>
+
+## Common Patterns
+
+| Pattern | Example use |
+|---|---|
+| **Normalize fields** | Map inconsistent API keys to a single schema |
+| **Validate before LLM** | Throw or set `skip: true` when input is empty or too short |
+| **Build strings** | Concatenate titles, URLs, or markdown for prompts |
+| **Aggregate arrays** | Sum numbers, group by key, or deduplicate IDs |
+
+## Error Handling
+
+If your script throws an uncaught exception, the node fails and the flow run stops (unless your project uses error branches). Prefer explicit checks:
+
+```javascript
+const raw = {{triggerNode.output}};
+if (!raw || !raw.content) {
+  output = { ok: false, reason: "missing content" };
+} else {
+  output = { ok: true, length: raw.content.length };
+}
+```
+
+## Security and Limits
+
+The Code Node runs in a restricted environment: no arbitrary file system access, no raw network calls from inside the sandbox (use the API Node instead), and execution time is capped to keep flows responsive. Avoid infinite loops and extremely large in-memory structures.
+
+## Example: Parse Front Matter
+
+<Steps>
+### Step 1
+Receive markdown from a trigger or file loader node.
+
+### Step 2
+Use a regular expression or simple string split to extract YAML front matter between `---` delimiters.
+
+### Step 3
+Set `output` with fields like `title`, `body`, and `meta` for downstream chunking or vectorization.
+</Steps>
+
+## When to Use Code Node vs Other Nodes
+
+- Use **Code Node** for deterministic transforms, validation, and JSON shaping.
+- Use **Instructor LLM** or **LLM** nodes for natural language generation or classification.
+- Use **API Node** for calling external HTTP services.
+
+Choosing the right node keeps flows easier to debug and review.
+
+## Limitations
+
+- No `require` or dynamic imports of arbitrary npm packages unless your Lamatic project explicitly enables them.
+- Very long scripts are harder to maintain; prefer reusable patterns and comments for teammates.
+- Floating-point math follows normal JavaScript semantics; round explicitly when you need fixed decimals for billing or metrics.
