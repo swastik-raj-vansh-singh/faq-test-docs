@@ -1,0 +1,880 @@
+triggerNode:
+  nodeId: triggerNode_1
+  nodeType: webhookTriggerNode
+  nodeName: Webhook
+  values: {}
+  modes: {}
+  allConfigs:
+    Config A:
+      nodeName: Webhook
+  schema:
+    content: string
+    filename: string
+nodes:
+  - nodeId: codeNode_parse_input
+    nodeType: codeNode
+    nodeName: Parse Input
+    values:
+      code: >-
+        const raw = {{triggerNode_1.output}};
+
+        const filePath = raw.path || raw.file_path || raw.filename || "";
+
+        const markdown = raw.markdown || raw.content || raw.file_content || "";
+
+        const fileName = filePath.split("/").pop().replace(/\.mdx?$/, "");
+
+
+        let title = "";
+
+        let cleanContent = markdown;
+
+
+        const fmMatch = markdown.match(/^---\n([\s\S]*?)\n---/);
+
+        if (fmMatch) {
+          const tm = fmMatch[1].match(/title:\s*(.+)/);
+          if (tm) title = tm[1].trim().replace(/^["']|["']$/g, "");
+          cleanContent = markdown.slice(fmMatch[0].length).trim();
+        }
+
+        if (!title) {
+          const h1 = cleanContent.match(/^#\s+(.+)/m);
+          if (h1) title = h1[1].trim();
+        }
+
+
+        let stripped = cleanContent.replace(/^import\s+.*$/gm, "");
+
+        stripped = stripped.replace(/<[A-Z][a-zA-Z]*[^>]*\/>/g, "");
+
+        stripped = stripped.replace(/<[A-Z][a-zA-Z]*[^>]*>/g, "");
+
+        stripped = stripped.replace(/<\/[A-Z][a-zA-Z]*>/g, "");
+
+        stripped = stripped.replace(/<br\s*\/?>/gi, "\n");
+
+        stripped = stripped.replace(/\n{3,}/g, "\n\n");
+
+        stripped = stripped.trim();
+
+
+        const pagePath = filePath.replace(/^pages\//, "").replace(/\.mdx?$/,
+        "");
+
+
+        output = {
+          file_path: filePath,
+          file_name: fileName,
+          page_path: pagePath,
+          title: title || fileName,
+          clean_content: stripped,
+          content_length: stripped.length
+        };
+    modes: {}
+    needs:
+      - triggerNode_1
+    allConfigs:
+      Config A:
+        id: codeNode_parse_input
+        code: >-
+          const raw = {{triggerNode_1.output}};
+
+          const filePath = raw.path || raw.file_path || raw.filename || "";
+
+          const markdown = raw.markdown || raw.content || raw.file_content ||
+          "";
+
+          const fileName = filePath.split("/").pop().replace(/\.mdx?$/, "");
+
+
+          let title = "";
+
+          let cleanContent = markdown;
+
+
+          const fmMatch = markdown.match(/^---\n([\s\S]*?)\n---/);
+
+          if (fmMatch) {
+            const tm = fmMatch[1].match(/title:\s*(.+)/);
+            if (tm) title = tm[1].trim().replace(/^["']|["']$/g, "");
+            cleanContent = markdown.slice(fmMatch[0].length).trim();
+          }
+
+          if (!title) {
+            const h1 = cleanContent.match(/^#\s+(.+)/m);
+            if (h1) title = h1[1].trim();
+          }
+
+
+          let stripped = cleanContent.replace(/^import\s+.*$/gm, "");
+
+          stripped = stripped.replace(/<[A-Z][a-zA-Z]*[^>]*\/>/g, "");
+
+          stripped = stripped.replace(/<[A-Z][a-zA-Z]*[^>]*>/g, "");
+
+          stripped = stripped.replace(/<\/[A-Z][a-zA-Z]*>/g, "");
+
+          stripped = stripped.replace(/<br\s*\/?>/gi, "\n");
+
+          stripped = stripped.replace(/\n{3,}/g, "\n\n");
+
+          stripped = stripped.trim();
+
+
+          const pagePath = filePath.replace(/^pages\//, "").replace(/\.mdx?$/,
+          "");
+
+
+          output = {
+            file_path: filePath,
+            file_name: fileName,
+            page_path: pagePath,
+            title: title || fileName,
+            clean_content: stripped,
+            content_length: stripped.length
+          };
+        nodeName: Parse Input
+    schema:
+      title: string
+      file_name: string
+      file_path: string
+      page_path: string
+      clean_content: string
+      content_length: number
+    logic: []
+  - nodeId: codeNode_length_check
+    nodeType: codeNode
+    nodeName: Content Length Check
+    values:
+      code: |-
+        const contentLength = {{codeNode_parse_input.output.content_length}};
+        const skipFile = contentLength < 500;
+        output = {
+          skip: skipFile,
+          reason: skipFile ? "Doc too short (" + contentLength + " chars). Minimum 500 chars required for FAQ generation." : "OK"
+        };
+    modes: {}
+    needs:
+      - codeNode_parse_input
+    allConfigs:
+      Config A:
+        id: codeNode_length_check
+        code: |-
+          const contentLength = {{codeNode_parse_input.output.content_length}};
+          const skipFile = contentLength < 500;
+          output = {
+            skip: skipFile,
+            reason: skipFile ? "Doc too short (" + contentLength + " chars). Minimum 500 chars required for FAQ generation." : "OK"
+          };
+        nodeName: Content Length Check
+    schema:
+      skip: boolean
+      reason: string
+    logic: []
+  - nodeId: InstructorLLMNode_faq_gen
+    nodeType: InstructorLLMNode
+    nodeName: FAQ Generator
+    values:
+      tools: &ref_0 []
+      schema: |-
+        {
+          "type": "object",
+          "properties": {
+            "faqs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "question": {
+                    "type": "string",
+                    "description": "A natural-language FAQ question (8-20 words)"
+                  },
+                  "answer": {
+                    "type": "string",
+                    "description": "A concise answer (max 4 sentences) sourced from the documentation"
+                  }
+                },
+                "required": ["question", "answer"]
+              },
+              "minItems": 7,
+              "maxItems": 7,
+              "description": "Array of exactly 7 FAQ question-answer pairs"
+            }
+          },
+          "required": ["faqs"]
+        }
+      prompts: &ref_1
+        - id: system_faq
+          role: system
+          content: >-
+            You are a technical documentation specialist who writes FAQ sections
+            for developer documentation sites. Your job is to generate FAQs that
+            serve two audiences simultaneously:
+
+            1. Search engines (SEO value): Questions must match the natural
+            language people type into Google or ask AI assistants when learning
+            about this topic. High-value SEO questions include comparisons ("X
+            vs Y"), how-to queries ("how to do X"), and definition questions
+            ("what is X") — but only when they are genuinely relevant to the
+            content.
+
+            2. Real users (practical value): Questions must reflect genuine
+            uncertainty, confusion, or operational needs that arise when a
+            developer actually uses the feature. These include troubleshooting
+            questions, edge cases, "when should I use X vs Y" decisions, and
+            questions that naturally lead to related features. The balance
+            ruleEvery FAQ you generate must satisfy BOTH audiences — not one or
+            the other. An FAQ that only targets keywords but provides a generic
+            answer is useless. An FAQ that only addresses niche user confusion
+            but has no search value will go unread by new users.
+
+
+            The practical test: before writing each question, ask:
+
+            - Would a developer type this into Google? (SEO value)
+
+            - Would a developer ask this after reading the page? (user value)
+
+
+            If only one answer is "yes", reframe the question until both are
+            "yes". If you cannot make both "yes", prioritize user value — a doc
+            that helps existing users is more valuable than one that attracts
+            visitors who don't convert. Question rules
+
+            - Write questions in natural spoken/typed language. "What's the
+            difference between X and Y?" not "Differentiation between X and Y
+            explained."
+
+            - Questions must be specific to the topic — never generic ("What is
+            AI?" is never acceptable)
+
+            - Questions must not duplicate what the page title or opening
+            paragraph already directly answers
+
+            - Questions must not be answerable with a simple "yes" or "no"
+            unless the answer immediately explains the "why" and "how"
+
+            - Question length: 8–20 words
+
+            - Do not start multiple questions with the same word Answer rules
+
+            - Maximum 4 sentences per answer
+
+            - First sentence must directly answer the question — no preamble, no
+            "Great question"
+
+            - Second/third sentence provides Lamatic-specific context,
+            implementation detail, or a concrete example
+
+            - If the answer naturally leads to another feature or guide, the
+            final sentence should point there by name: "See the [Jobs &
+            Scheduling] docs for more details." — use square brackets around the
+            page/feature name so the engineer can add links later
+
+            - No marketing language ("powerful", "seamless", "cutting-edge",
+            "robust", "game-changing")
+
+            - No jargon without a one-clause definition on first use
+
+            - Do not copy sentences verbatim from the source documentation
+            Output formatReturn a JSON object with a "faqs" array. Generate
+            exactly 7 FAQs.
+        - id: user_faq
+          role: user
+          content: >-
+            Generate 7 FAQs for the following documentation page.
+
+
+            Page title: {{codeNode_parse_input.output.title}} Page URL path:
+            {{codeNode_parse_input.output.page_path}} Page content:
+            {{codeNode_parse_input.output.clean_content}}Apply the SEO-user
+            balance rules from your instructions. Use the page content as the
+            source of truth for answers, but write answers in your own words. Do
+            not invent facts that are not present or inferable from the content.
+      memories: '[]'
+      messages: '[]'
+      attachments: ''
+      generativeModelName: &ref_2
+        - type: generator/text
+          params: {}
+          configName: configA
+          model_name: gemini/gemini-2.5-pro
+          credentialId: 15757306-1907-4b23-834f-0b164af61293
+          provider_name: gemini
+          credential_name: gemini
+    modes: {}
+    needs:
+      - codeNode_length_check
+    allConfigs:
+      Config A:
+        id: InstructorLLMNode_faq_gen
+        tools: *ref_0
+        schema: |-
+          {
+            "type": "object",
+            "properties": {
+              "faqs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "question": {
+                      "type": "string",
+                      "description": "A natural-language FAQ question (8-20 words)"
+                    },
+                    "answer": {
+                      "type": "string",
+                      "description": "A concise answer (max 4 sentences) sourced from the documentation"
+                    }
+                  },
+                  "required": ["question", "answer"]
+                },
+                "minItems": 7,
+                "maxItems": 7,
+                "description": "Array of exactly 7 FAQ question-answer pairs"
+              }
+            },
+            "required": ["faqs"]
+          }
+        prompts: *ref_1
+        memories: '[]'
+        messages: '[]'
+        nodeName: FAQ Generator
+        attachments: ''
+        generativeModelName: *ref_2
+    schema:
+      faqs: array
+  - nodeId: codeNode_validate_faqs
+    nodeType: codeNode
+    nodeName: Validate FAQs
+    values:
+      code: |-
+        const faqs = {{InstructorLLMNode_faq_gen.output.faqs}};
+        let valid = true;
+        let errorMsg = "";
+
+        try {
+          if (!Array.isArray(faqs)) {
+            throw new Error("Expected an array, got: " + typeof faqs);
+          }
+
+          if (faqs.length < 5 || faqs.length > 10) {
+            throw new Error("Expected 5-10 FAQs, got: " + faqs.length);
+          }
+
+          for (const item of faqs) {
+            if (!item.question || typeof item.question !== "string") {
+              throw new Error("FAQ item missing question: " + JSON.stringify(item));
+            }
+            if (!item.answer || typeof item.answer !== "string") {
+              throw new Error("FAQ item missing answer: " + JSON.stringify(item));
+            }
+            if (item.question.length < 10) {
+              throw new Error("Question too short: " + item.question);
+            }
+            if (item.answer.split(" ").length < 20) {
+              throw new Error("Answer too short (< 20 words): " + item.answer.substring(0, 80) + "...");
+            }
+          }
+        } catch (e) {
+          valid = false;
+          errorMsg = e.message || String(e);
+        }
+
+        output = {
+          valid: valid,
+          error: errorMsg,
+          faqs: valid ? faqs : [],
+          faq_count: valid ? faqs.length : 0
+        };
+    modes: {}
+    needs:
+      - InstructorLLMNode_faq_gen
+    allConfigs:
+      Config A:
+        id: codeNode_validate_faqs
+        code: |-
+          const faqs = {{InstructorLLMNode_faq_gen.output.faqs}};
+          let valid = true;
+          let errorMsg = "";
+
+          try {
+            if (!Array.isArray(faqs)) {
+              throw new Error("Expected an array, got: " + typeof faqs);
+            }
+
+            if (faqs.length < 5 || faqs.length > 10) {
+              throw new Error("Expected 5-10 FAQs, got: " + faqs.length);
+            }
+
+            for (const item of faqs) {
+              if (!item.question || typeof item.question !== "string") {
+                throw new Error("FAQ item missing question: " + JSON.stringify(item));
+              }
+              if (!item.answer || typeof item.answer !== "string") {
+                throw new Error("FAQ item missing answer: " + JSON.stringify(item));
+              }
+              if (item.question.length < 10) {
+                throw new Error("Question too short: " + item.question);
+              }
+              if (item.answer.split(" ").length < 20) {
+                throw new Error("Answer too short (< 20 words): " + item.answer.substring(0, 80) + "...");
+              }
+            }
+          } catch (e) {
+            valid = false;
+            errorMsg = e.message || String(e);
+          }
+
+          output = {
+            valid: valid,
+            error: errorMsg,
+            faqs: valid ? faqs : [],
+            faq_count: valid ? faqs.length : 0
+          };
+        nodeName: Validate FAQs
+    schema:
+      faqs: array
+      error: string
+      valid: boolean
+      faq_count: number
+    logic: []
+  - nodeId: apiNode_get_file
+    nodeType: apiNode
+    nodeName: Get File from GitHub
+    values:
+      url: >-
+        https://api.github.com/repos/swastik-raj-vansh-singh/faq-test-docs/contents/{{codeNode_parse_input.output.file_path}}
+      body: ''
+      method: GET
+      headers: >-
+        {"Accept":"application/vnd.github.v3+json","Authorization":"Bearer
+        {{secrets.project.GITHUB_PAT}}","User-Agent":"Lamatic-FAQ-Bot"}
+      retries: '1'
+      retry_deplay: '0'
+      convertXmlResponseToJson: false
+    modes: {}
+    needs:
+      - codeNode_validate_faqs
+    allConfigs:
+      Config A:
+        id: apiNode_get_file
+        url: >-
+          https://api.github.com/repos/swastik-raj-vansh-singh/faq-test-docs/contents/{{codeNode_parse_input.output.file_path}}
+        body: ''
+        method: GET
+        headers: >-
+          {"Accept":"application/vnd.github.v3+json","Authorization":"Bearer
+          {{secrets.project.GITHUB_PAT}}","User-Agent":"Lamatic-FAQ-Bot"}
+        retries: '1'
+        nodeName: Get File from GitHub
+        retry_deplay: '0'
+        convertXmlResponseToJson: false
+    schema: {}
+    logic: []
+  - nodeId: codeNode_build_file
+    nodeType: codeNode
+    nodeName: Build Updated File
+    values:
+      code: |-
+        const faqs = {{codeNode_validate_faqs.output.faqs}};
+        const faqValid = {{codeNode_validate_faqs.output.valid}};
+        const ghFile = {{apiNode_get_file.output}};
+        const fileSha = ghFile.sha || "";
+        const base64Raw = (ghFile.content || "").replace(/\n/g, "");
+        const originalMd = decodeURIComponent(escape(atob(base64Raw)));
+
+        if (!faqValid) {
+          output = {
+            skip: true,
+            skip_reason: "FAQ validation failed",
+            base64_content: "",
+            file_sha: fileSha,
+            faq_count: 0,
+            faqs: []
+          };
+        }
+        else if (/##\s*(FAQ|Frequently Asked Questions)/i.test(originalMd)) {
+          output = {
+            skip: true,
+            skip_reason: "FAQ section already exists in file",
+            base64_content: "",
+            file_sha: fileSha,
+            faq_count: 0,
+            faqs: []
+          };
+        }
+        else {
+          const itemsArray = faqs.map(function(faq) {
+            return '  {\n    question: "' + faq.question.replace(/"/g, '\\"') + '",\n    answer: "' + faq.answer.replace(/"/g, '\\"') + '"\n  }';
+          });
+
+          let faqSection = '\nimport { FAQAccordion } from "@/components/FAQAccordion"\n\n';
+          faqSection += "## Frequently Asked Questions\n\n";
+          faqSection += "<FAQAccordion items={[\n";
+          faqSection += itemsArray.join(",\n");
+          faqSection += "\n]} />\n";
+
+          const updatedMd = originalMd.trimEnd() + "\n" + faqSection;
+          const base64Content = btoa(unescape(encodeURIComponent(updatedMd)));
+
+          output = {
+            skip: false,
+            skip_reason: "",
+            base64_content: base64Content,
+            file_sha: fileSha,
+            faq_count: faqs.length,
+            faqs: faqs
+          };
+        }
+    modes: {}
+    needs:
+      - apiNode_get_file
+    allConfigs:
+      Config A:
+        id: codeNode_build_file
+        code: |-
+          const faqs = {{codeNode_validate_faqs.output.faqs}};
+          const faqValid = {{codeNode_validate_faqs.output.valid}};
+          const ghFile = {{apiNode_get_file.output}};
+          const fileSha = ghFile.sha || "";
+          const base64Raw = (ghFile.content || "").replace(/\n/g, "");
+          const originalMd = decodeURIComponent(escape(atob(base64Raw)));
+
+          if (!faqValid) {
+            output = {
+              skip: true,
+              skip_reason: "FAQ validation failed",
+              base64_content: "",
+              file_sha: fileSha,
+              faq_count: 0,
+              faqs: []
+            };
+          }
+          else if (/##\s*(FAQ|Frequently Asked Questions)/i.test(originalMd)) {
+            output = {
+              skip: true,
+              skip_reason: "FAQ section already exists in file",
+              base64_content: "",
+              file_sha: fileSha,
+              faq_count: 0,
+              faqs: []
+            };
+          }
+          else {
+            const itemsArray = faqs.map(function(faq) {
+              return '  {\n    question: "' + faq.question.replace(/"/g, '\\"') + '",\n    answer: "' + faq.answer.replace(/"/g, '\\"') + '"\n  }';
+            });
+
+            let faqSection = '\nimport { FAQAccordion } from "@/components/FAQAccordion"\n\n';
+            faqSection += "## Frequently Asked Questions\n\n";
+            faqSection += "<FAQAccordion items={[\n";
+            faqSection += itemsArray.join(",\n");
+            faqSection += "\n]} />\n";
+
+            const updatedMd = originalMd.trimEnd() + "\n" + faqSection;
+            const base64Content = btoa(unescape(encodeURIComponent(updatedMd)));
+
+            output = {
+              skip: false,
+              skip_reason: "",
+              base64_content: base64Content,
+              file_sha: fileSha,
+              faq_count: faqs.length,
+              faqs: faqs
+            };
+          }
+        nodeName: Build Updated File
+    schema:
+      faqs: array
+      skip: boolean
+      file_sha: string
+      faq_count: number
+      skip_reason: string
+      base64_content: string
+    logic: []
+  - nodeId: apiNode_get_main_ref
+    nodeType: apiNode
+    nodeName: Get Main Branch Ref
+    values:
+      url: >-
+        https://api.github.com/repos/swastik-raj-vansh-singh/faq-test-docs/git/ref/heads/main
+      body: ''
+      method: GET
+      headers: >-
+        {"Accept":"application/vnd.github.v3+json","Authorization":"Bearer
+        {{secrets.project.GITHUB_PAT}}","Content-Type":"application/json","User-Agent":"Lamatic-FAQ-Bot"}
+      retries: '1'
+      retry_deplay: '0'
+      convertXmlResponseToJson: false
+    modes: {}
+    needs:
+      - codeNode_build_file
+    allConfigs:
+      Config A:
+        id: apiNode_get_main_ref
+        url: >-
+          https://api.github.com/repos/swastik-raj-vansh-singh/faq-test-docs/git/ref/heads/main
+        body: ''
+        method: GET
+        headers: >-
+          {"Accept":"application/vnd.github.v3+json","Authorization":"Bearer
+          {{secrets.project.GITHUB_PAT}}","Content-Type":"application/json","User-Agent":"Lamatic-FAQ-Bot"}
+        retries: '1'
+        nodeName: Get Main Branch Ref
+        retry_deplay: '0'
+        convertXmlResponseToJson: false
+    schema: {}
+    logic: []
+  - nodeId: codeNode_prepare_branch
+    nodeType: codeNode
+    nodeName: Prepare Branch Name
+    values:
+      code: |-
+        const fileName = {{codeNode_parse_input.output.file_name}};
+        const ts = Date.now();
+        const branchName = "faq/" + fileName + "-" + ts;
+        const mainRef = {{apiNode_get_main_ref.output}};
+        const mainSha = mainRef.object ? mainRef.object.sha : "";
+
+        output = {
+          branch_name: branchName,
+          branch_ref: "refs/heads/" + branchName,
+          main_sha: mainSha
+        };
+    modes: {}
+    needs:
+      - apiNode_get_main_ref
+    allConfigs:
+      Config A:
+        id: codeNode_prepare_branch
+        code: |-
+          const fileName = {{codeNode_parse_input.output.file_name}};
+          const ts = Date.now();
+          const branchName = "faq/" + fileName + "-" + ts;
+          const mainRef = {{apiNode_get_main_ref.output}};
+          const mainSha = mainRef.object ? mainRef.object.sha : "";
+
+          output = {
+            branch_name: branchName,
+            branch_ref: "refs/heads/" + branchName,
+            main_sha: mainSha
+          };
+        nodeName: Prepare Branch Name
+    schema:
+      main_sha: string
+      branch_ref: string
+      branch_name: string
+    logic: []
+  - nodeId: apiNode_create_branch
+    nodeType: apiNode
+    nodeName: Create Branch
+    values:
+      url: >-
+        https://api.github.com/repos/swastik-raj-vansh-singh/faq-test-docs/git/refs
+      body: >-
+        {"ref":"{{codeNode_prepare_branch.output.branch_ref}}","sha":"{{codeNode_prepare_branch.output.main_sha}}"}
+      method: POST
+      headers: >-
+        {"Accept":"application/vnd.github.v3+json","Authorization":"Bearer
+        {{secrets.project.GITHUB_PAT}}","Content-Type":"application/json","User-Agent":"Lamatic-FAQ-Bot"}
+      retries: '1'
+      retry_deplay: '0'
+      convertXmlResponseToJson: false
+    modes: {}
+    needs:
+      - codeNode_prepare_branch
+    allConfigs:
+      Config A:
+        id: apiNode_create_branch
+        url: >-
+          https://api.github.com/repos/swastik-raj-vansh-singh/faq-test-docs/git/refs
+        body: >-
+          {"ref":"{{codeNode_prepare_branch.output.branch_ref}}","sha":"{{codeNode_prepare_branch.output.main_sha}}"}
+        method: POST
+        headers: >-
+          {"Accept":"application/vnd.github.v3+json","Authorization":"Bearer
+          {{secrets.project.GITHUB_PAT}}","Content-Type":"application/json","User-Agent":"Lamatic-FAQ-Bot"}
+        retries: '1'
+        nodeName: Create Branch
+        retry_deplay: '0'
+        convertXmlResponseToJson: false
+    schema: {}
+    logic: []
+  - nodeId: apiNode_update_file
+    nodeType: apiNode
+    nodeName: Update File in Branch
+    values:
+      url: >-
+        https://api.github.com/repos/swastik-raj-vansh-singh/faq-test-docs/contents/{{codeNode_parse_input.output.file_path}}
+      body: >-
+        {"message":"docs(faq): auto-generate FAQs for
+        {{codeNode_parse_input.output.title}}","content":"{{codeNode_build_file.output.base64_content}}","sha":"{{codeNode_build_file.output.file_sha}}","branch":"{{codeNode_prepare_branch.output.branch_name}}"}
+      method: PUT
+      headers: >-
+        {"Accept":"application/vnd.github.v3+json","Authorization":"Bearer
+        {{secrets.project.GITHUB_PAT}}","Content-Type":"application/json","User-Agent":"Lamatic-FAQ-Bot"}
+      retries: '1'
+      retry_deplay: '0'
+      convertXmlResponseToJson: false
+    modes: {}
+    needs:
+      - apiNode_create_branch
+    allConfigs:
+      Config A:
+        id: apiNode_update_file
+        url: >-
+          https://api.github.com/repos/swastik-raj-vansh-singh/faq-test-docs/contents/{{codeNode_parse_input.output.file_path}}
+        body: >-
+          {"message":"docs(faq): auto-generate FAQs for
+          {{codeNode_parse_input.output.title}}","content":"{{codeNode_build_file.output.base64_content}}","sha":"{{codeNode_build_file.output.file_sha}}","branch":"{{codeNode_prepare_branch.output.branch_name}}"}
+        method: PUT
+        headers: >-
+          {"Accept":"application/vnd.github.v3+json","Authorization":"Bearer
+          {{secrets.project.GITHUB_PAT}}","Content-Type":"application/json","User-Agent":"Lamatic-FAQ-Bot"}
+        retries: '1'
+        nodeName: Update File in Branch
+        retry_deplay: '0'
+        convertXmlResponseToJson: false
+    schema: {}
+    logic: []
+  - nodeId: apiNode_create_pr
+    nodeType: apiNode
+    nodeName: Create Pull Request
+    values:
+      url: https://api.github.com/repos/swastik-raj-vansh-singh/faq-test-docs/pulls
+      body: >-
+        {"title":"docs(faq): Add auto-generated FAQs for
+        {{codeNode_parse_input.output.title}}","head":"{{codeNode_prepare_branch.output.branch_name}}","base":"main","body":"##
+        Auto-generated FAQs\n\nSource:
+        `{{codeNode_parse_input.output.file_path}}`\n\n### Preview\n\nGenerated
+        {{codeNode_build_file.output.faq_count}} FAQ(s). Please review the file
+        diff for the full questions and answers.\n\n---\n_Generated by Lamatic
+        FAQ Flow. Review content, edit if needed, then merge to
+        publish._","draft":false}
+      method: POST
+      headers: >-
+        {"Accept":"application/vnd.github.v3+json","Authorization":"Bearer
+        {{secrets.project.GITHUB_PAT}}","Content-Type":"application/json","User-Agent":"Lamatic-FAQ-Bot"}
+      retries: '1'
+      retry_deplay: '0'
+      convertXmlResponseToJson: false
+    modes: {}
+    needs:
+      - apiNode_update_file
+    allConfigs:
+      Config A:
+        id: apiNode_create_pr
+        url: >-
+          https://api.github.com/repos/swastik-raj-vansh-singh/faq-test-docs/pulls
+        body: >-
+          {"title":"docs(faq): Add auto-generated FAQs for
+          {{codeNode_parse_input.output.title}}","head":"{{codeNode_prepare_branch.output.branch_name}}","base":"main","body":"##
+          Auto-generated FAQs\n\nSource:
+          `{{codeNode_parse_input.output.file_path}}`\n\n###
+          Preview\n\nGenerated {{codeNode_build_file.output.faq_count}} FAQ(s).
+          Please review the file diff for the full questions and
+          answers.\n\n---\n_Generated by Lamatic FAQ Flow. Review content, edit
+          if needed, then merge to publish._","draft":false}
+        method: POST
+        headers: >-
+          {"Accept":"application/vnd.github.v3+json","Authorization":"Bearer
+          {{secrets.project.GITHUB_PAT}}","Content-Type":"application/json","User-Agent":"Lamatic-FAQ-Bot"}
+        retries: '1'
+        nodeName: Create Pull Request
+        retry_deplay: '0'
+        convertXmlResponseToJson: false
+    schema: {}
+    logic: []
+  - nodeId: codeNode_response
+    nodeType: codeNode
+    nodeName: Build Response
+    values:
+      code: |-
+        const buildOutput = {{codeNode_build_file.output}};
+        const pr = {{apiNode_create_pr.output}};
+        const validationError = {{codeNode_validate_faqs.output.error}};
+
+        if (buildOutput.skip) {
+          output = {
+            status: "skipped",
+            reason: buildOutput.skip_reason,
+            file_path: {{codeNode_parse_input.output.file_path}},
+            title: {{codeNode_parse_input.output.title}},
+            faq_count: 0,
+            faqs: [],
+            pr_url: "",
+            pr_number: 0,
+            validation_error: validationError
+          };
+        } else {
+          output = {
+            status: "success",
+            reason: "",
+            file_path: {{codeNode_parse_input.output.file_path}},
+            title: {{codeNode_parse_input.output.title}},
+            faq_count: buildOutput.faqs.length,
+            faqs: buildOutput.faqs,
+            pr_url: pr.html_url || "",
+            pr_number: pr.number || 0,
+            validation_error: ""
+          };
+        }
+    modes: {}
+    needs:
+      - apiNode_create_pr
+    allConfigs:
+      Config A:
+        id: codeNode_response
+        code: |-
+          const buildOutput = {{codeNode_build_file.output}};
+          const pr = {{apiNode_create_pr.output}};
+          const validationError = {{codeNode_validate_faqs.output.error}};
+
+          if (buildOutput.skip) {
+            output = {
+              status: "skipped",
+              reason: buildOutput.skip_reason,
+              file_path: {{codeNode_parse_input.output.file_path}},
+              title: {{codeNode_parse_input.output.title}},
+              faq_count: 0,
+              faqs: [],
+              pr_url: "",
+              pr_number: 0,
+              validation_error: validationError
+            };
+          } else {
+            output = {
+              status: "success",
+              reason: "",
+              file_path: {{codeNode_parse_input.output.file_path}},
+              title: {{codeNode_parse_input.output.title}},
+              faq_count: buildOutput.faqs.length,
+              faqs: buildOutput.faqs,
+              pr_url: pr.html_url || "",
+              pr_number: pr.number || 0,
+              validation_error: ""
+            };
+          }
+        nodeName: Build Response
+    schema:
+      faqs: array
+      title: string
+      pr_url: string
+      reason: string
+      status: string
+      faq_count: number
+      file_path: string
+      pr_number: number
+      validation_error: string
+    logic: []
+  - nodeId: plus-node-addNode_triggerNode_1726
+    nodeType: addNode
+    nodeName: ''
+    values: {}
+    modes: {}
+    needs:
+      - codeNode_response
+    allConfigs:
+      Config A: {}
