@@ -1,0 +1,89 @@
+---
+title: Conditional Node
+description: Learn how to add if/else branching logic to your Lamatic flows so different paths execute based on runtime data.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Conditional Node
+
+<SectionRows section="Node Type" chips={["Flow"]} />
+
+The Conditional Node evaluates an expression at runtime and routes execution down one of two or more branches. It is the primary way to add if/else logic inside a Lamatic flow without writing a full Code Node.
+
+## How It Works
+
+1. An upstream node produces output fields (strings, numbers, booleans, arrays, objects).
+2. The Conditional Node checks one or more conditions against those fields.
+3. If the condition is **true**, execution continues down the "true" branch. Otherwise it follows the "false" (or "else") branch.
+4. Downstream nodes only run on the branch that was selected.
+
+## Condition Types
+
+| Operator | Example | Evaluates true when |
+|---|---|---|
+| **equals** | `status == "success"` | Exact string or number match |
+| **not equals** | `status != "skipped"` | Values differ |
+| **greater than** | `content_length > 500` | Numeric comparison |
+| **less than** | `faq_count < 5` | Numeric comparison |
+| **contains** | `file_path contains "docs/"` | Substring match |
+| **is empty** | `error is empty` | Field is null, undefined, or empty string |
+| **is not empty** | `faqs is not empty` | Field has a value |
+
+You can combine multiple conditions with AND or OR logic depending on your Lamatic plan.
+
+## Configuration
+
+| Setting | Description |
+|---|---|
+| **Input field** | The upstream output field to evaluate, for example `{{codeNode.output.skip}}` |
+| **Operator** | The comparison to apply (equals, greater than, contains, etc.) |
+| **Value** | The literal or template value to compare against |
+| **Branch labels** | Optional names for the true/false paths to keep the canvas readable |
+
+<Callout type="info">
+Always test both branches when building a flow. A common mistake is connecting downstream nodes only to the "true" path and leaving the "false" path dangling, which causes silent failures when the condition evaluates to false.
+</Callout>
+
+## Common Use Cases
+
+### Skip short documents
+Check `content_length > 500` before sending text to an LLM. Short stubs waste tokens and produce low-quality output.
+
+### Route by file type
+Check whether `file_path contains ".mdx"` vs `.md` to apply different processing templates.
+
+### Guard against missing data
+Check `input is not empty` before calling an external API to avoid 400 errors from the downstream service.
+
+### Toggle draft mode
+Check a flag like `is_draft == true` to route PRs to draft creation instead of published PRs.
+
+## Conditional Node vs Code Node
+
+Use the **Conditional Node** when your logic is a simple comparison — it is faster to set up and easier to read on the canvas. Use a **Code Node** when you need complex expressions, multiple nested conditions, or string manipulation before deciding which branch to take.
+
+## Example: FAQ Generation Guard
+
+<Steps>
+### Step 1
+A Code Node outputs `{skip: true, reason: "Doc too short"}` or `{skip: false, reason: "OK"}`.
+
+### Step 2
+The Conditional Node checks `skip == false`.
+
+### Step 3
+The **true** branch continues to the LLM for FAQ generation. The **false** branch skips to a response node that logs the reason and exits.
+</Steps>
+
+## Limitations
+
+- Conditions evaluate at the moment the node runs; they cannot watch for future changes.
+- Deeply nested conditionals (more than 3–4 levels) become hard to follow on the canvas. Consider combining checks in a single Code Node and outputting a routing key instead.
+- Some operators (like regex matching) may not be available in the visual editor; use a Code Node for advanced pattern matching.
+
+## Related
+
+See **Code Node** for complex branching logic, **Merge Node** for rejoining branches, and **Response Node** for ending each branch with a proper output.
