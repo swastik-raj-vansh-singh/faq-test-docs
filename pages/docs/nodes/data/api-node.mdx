@@ -1,0 +1,118 @@
+---
+title: API Node
+description: Learn how to use the API Node in Lamatic.ai to make HTTP requests to external services and integrate third-party APIs into your workflows.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# API Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The API Node lets you make HTTP requests to any external service from within a Lamatic flow. It supports GET, POST, PUT, PATCH, and DELETE methods with full control over headers, body, query parameters, and authentication. Responses are parsed and made available to downstream nodes as structured data.
+
+## How It Works
+
+When the API Node executes, it:
+
+1. Constructs an HTTP request using the configured method, URL, headers, and body
+2. Sends the request to the target endpoint
+3. Waits for the response (with configurable timeout and retry settings)
+4. Parses the response body as JSON (or raw text if JSON parsing fails)
+5. Outputs the parsed response, status code, and headers for use by subsequent nodes
+
+## Configuration
+
+| Parameter | Description | Required |
+|---|---|---|
+| **URL** | The full endpoint URL to call. Supports template variables like `{{previousNode.output.id}}` | Yes |
+| **Method** | HTTP method: GET, POST, PUT, PATCH, or DELETE | Yes |
+| **Headers** | JSON object of request headers. Common headers like `Content-Type` and `Authorization` go here | No |
+| **Body** | Request body for POST, PUT, and PATCH requests. Supports JSON and template variables | No |
+| **Retries** | Number of retry attempts if the request fails (default: 0) | No |
+| **Retry Delay** | Milliseconds to wait between retries (default: 0) | No |
+| **Convert XML to JSON** | If enabled, XML responses are automatically converted to JSON | No |
+
+## Authentication
+
+The API Node supports several authentication patterns through the Headers field:
+
+- **Bearer Token**: Set `Authorization: Bearer <token>` in headers
+- **API Key**: Pass the key as a header (e.g., `X-API-Key: <key>`) or as a query parameter in the URL
+- **Basic Auth**: Set `Authorization: Basic <base64-encoded credentials>` in headers
+
+<Callout type="info">
+Store sensitive credentials like API keys and tokens in Lamatic project secrets, then reference them with `{{secrets.project.YOUR_SECRET_NAME}}` to keep them secure.
+</Callout>
+
+## Request Body Templating
+
+The body field supports Lamatic template syntax, letting you dynamically build request payloads from upstream node outputs:
+
+```json
+{
+  "query": "{{searchNode.output.query}}",
+  "filters": {
+    "category": "{{codeNode.output.category}}",
+    "limit": 10
+  }
+}
+```
+
+Template variables are resolved at runtime before the request is sent.
+
+## Response Handling
+
+The API Node outputs a JSON object containing the full response. You can access nested fields in downstream nodes using dot notation:
+
+- `{{apiNode.output.data}}` — the parsed response body
+- `{{apiNode.output.status}}` — the HTTP status code
+- `{{apiNode.output.headers}}` — response headers
+
+If the response is not valid JSON, the raw text is available as a string.
+
+## Error Handling and Retries
+
+When a request fails (network error or non-2xx status code), the node can automatically retry based on your configuration. The retry behavior works as follows:
+
+1. The initial request is sent
+2. If it fails and retries are configured, the node waits for the specified delay
+3. The request is retried up to the configured number of times
+4. If all retries are exhausted, the node outputs the last error response
+
+<Callout type="warning">
+Set reasonable retry counts (1-3) and delays (1000-5000ms) to avoid overwhelming external APIs or causing excessive workflow execution time.
+</Callout>
+
+## Common Use Cases
+
+- **Fetching data from REST APIs**: Pull product catalogs, user profiles, or configuration from your backend
+- **Sending notifications**: POST to Slack, Discord, or email APIs when a flow completes
+- **Creating resources**: Use POST or PUT to create or update records in external systems like CRMs, databases, or project management tools
+- **Webhook forwarding**: Relay processed data to downstream services
+- **GitHub API integration**: Create branches, commits, or pull requests as part of automated documentation workflows
+
+## Example: Calling a REST API
+
+<Steps>
+### Step 1
+Add an API Node to your flow and connect it to the upstream node that provides the data you need.
+
+### Step 2
+Configure the URL, method, and headers. For a simple GET request:
+- **URL**: `https://api.example.com/users/{{codeNode.output.userId}}`
+- **Method**: GET
+- **Headers**: `{"Authorization": "Bearer {{secrets.project.API_TOKEN}}"}`
+
+### Step 3
+Run the flow. The API Node will make the request and pass the response to the next node in the pipeline.
+</Steps>
+
+## Limitations
+
+- Maximum response size: 10 MB
+- Request timeout: 30 seconds (configurable up to 120 seconds)
+- The node does not follow redirects automatically; use the final URL directly
+- File uploads and multipart form data are not supported in the current version
