@@ -1,0 +1,82 @@
+---
+title: Batch Node
+description: Learn how to process multiple items in a single flow run using the Batch Node in Lamatic to handle arrays, lists, and bulk operations efficiently.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Batch Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Batch Node takes an array of items and processes each one through a sequence of downstream nodes. Instead of building separate flows for each item, a single Batch Node fans out the work and collects the results back into one array when finished.
+
+## How It Works
+
+1. An upstream node provides an array, for example a list of document chunks, search results, or API responses.
+2. The Batch Node iterates over the array and runs the connected downstream nodes once per item.
+3. After all items have been processed, the outputs are collected into a single array that the next node in the pipeline can consume.
+
+## Configuration
+
+| Setting | Description | Required |
+|---|---|---|
+| **Input array** | Template reference to the upstream array field, for example `{{chunkNode.output.chunks}}` | Yes |
+| **Concurrency** | How many items to process in parallel. Higher values are faster but may hit API rate limits. | No (defaults to 1) |
+| **Continue on error** | Whether to skip failed items and keep processing the rest, or stop the entire batch on the first failure | No (defaults to stop) |
+
+## When to Use It
+
+- **Chunk-level operations**: Vectorize, summarize, or classify each chunk from a Text Splitter independently.
+- **Multi-file processing**: When a webhook delivers several file paths, process each file through the same pipeline.
+- **Bulk API calls**: Send a list of records to an external service one at a time with automatic retry and error handling per item.
+
+<Callout type="warning">
+Watch your concurrency setting when calling external APIs. Setting concurrency too high can trigger rate limits or 429 errors from the target service. Start with a low value and increase only after confirming the API can handle the load.
+</Callout>
+
+## Accessing the Current Item
+
+Inside the batch loop, downstream nodes reference the current item using the Batch Node's output path. For example if the Batch Node ID is `batchNode_1`, use `{{batchNode_1.output.currentItem}}` to access the item being processed in the current iteration.
+
+## Collecting Results
+
+After the loop completes, the Batch Node exposes:
+
+- `{{batchNode_1.output.results}}` — array of all outputs from the downstream nodes, one per item
+- `{{batchNode_1.output.totalProcessed}}` — count of successfully processed items
+- `{{batchNode_1.output.errors}}` — array of errors if any items failed and continue-on-error was enabled
+
+## Example: Vectorize Document Chunks
+
+<Steps>
+### Step 1
+A Text Splitter Node breaks a document into 20 chunks.
+
+### Step 2
+The Batch Node receives the chunks array and iterates over each chunk.
+
+### Step 3
+Inside the loop, a Vectorize Node converts the current chunk text into an embedding vector.
+
+### Step 4
+After all 20 chunks are processed, the Batch Node outputs an array of 20 vectors ready for indexing.
+</Steps>
+
+## Performance Considerations
+
+- Each iteration runs the full downstream chain, so long chains multiply execution time by the number of items.
+- Use concurrency greater than 1 for I/O-bound work (API calls, embedding requests) but keep it at 1 for CPU-bound logic to avoid contention.
+- For very large arrays (hundreds of items), consider splitting into smaller batches or using a queue-based architecture.
+
+## Limitations
+
+- Nested batches (a Batch Node inside another Batch Node) are not supported in all Lamatic plans.
+- The maximum array size depends on your project limits and available execution time.
+- Batch Node outputs are held in memory until all iterations complete; extremely large result sets may hit memory constraints.
+
+## Related
+
+See **Text Splitter** for creating arrays of chunks, **Vectorize** for embedding text inside a batch loop, and **Index Node** for writing batch results to a vector database.
