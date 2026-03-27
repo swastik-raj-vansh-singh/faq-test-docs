@@ -80,3 +80,38 @@ After all 20 chunks are processed, the Batch Node outputs an array of 20 vectors
 ## Related
 
 See **Text Splitter** for creating arrays of chunks, **Vectorize** for embedding text inside a batch loop, and **Index Node** for writing batch results to a vector database.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "What is a Batch Node and what problem does it solve?",
+    answer: "A Batch Node in Lamatic processes each item from an input array through a sequence of downstream nodes. It solves the problem of needing to build separate flows for individual items by fanning out work from a single array. After processing, all results are collected back into a single array for further use in the pipeline."
+  },
+  {
+    question: "How does the Batch Node process multiple items concurrently?",
+    answer: "The Batch Node processes multiple items concurrently by iterating over an input array and running connected downstream nodes for each item in parallel. The \"Concurrency\" setting determines how many items are processed at the same time. Higher concurrency can speed up processing but may increase the risk of hitting external API rate limits."
+  },
+  {
+    question: "When should developers integrate a Batch Node into their workflow?",
+    answer: "Developers should integrate a Batch Node when they need to perform identical operations on multiple distinct items within an array. Common use cases include chunk-level operations like vectorizing text, processing several files delivered via a webhook, or making bulk API calls to an external service. It streamlines repetitive tasks on collections of data."
+  },
+  {
+    question: "Describe how a Batch Node handles errors during item processing.",
+    answer: "A Batch Node's error handling behavior is controlled by the \"Continue on error\" configuration setting. By default, if an individual item fails during processing, the entire batch will stop. However, you can configure the Batch Node to skip the failed item and continue processing the remaining items in the array."
+  },
+  {
+    question: "Which configuration field specifies the input array for a Batch Node?",
+    answer: "The \"Input array\" configuration field specifies the upstream data that the Batch Node will process. This field requires a template reference, such as `{{chunkNode.output.chunks}}`, to point to the array field from a preceding node. This allows the Batch Node to dynamically access the array of items."
+  },
+  {
+    question: "By default, how many items does a Batch Node process concurrently?",
+    answer: "By default, a Batch Node processes one item at a time, meaning its \"Concurrency\" setting is set to 1. This sequential processing ensures stable execution, but you can adjust this value to process multiple items in parallel for improved performance. Increasing concurrency can be beneficial for throughput but requires careful consideration of potential API rate limits."
+  },
+  {
+    question: "Why might my Batch Node pipeline encounter external API rate limits?",
+    answer: "Your Batch Node pipeline might encounter external API rate limits if the \"Concurrency\" setting is too high, especially when making bulk API calls. Processing many items in parallel means more requests are sent to external services simultaneously. It's crucial to monitor this setting and align it with the rate limits of any third-party APIs you are using to avoid service interruptions."
+  }
+]} />
