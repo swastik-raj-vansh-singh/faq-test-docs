@@ -1,0 +1,65 @@
+---
+title: Documentation Style Guide
+description: Conventions for writing and structuring documentation in this project so pages stay consistent, searchable, and easy to maintain.
+---
+
+import { Callout } from 'nextra-theme-docs'
+
+# Documentation Style Guide
+
+This page describes how we write docs in this repository. Following these conventions keeps the site predictable for readers and for automation that processes MDX files (for example FAQ generation or search indexing).
+
+## File and routing
+
+- Put user-facing guides under `pages/docs/`. Use lowercase filenames with hyphens, for example `getting-started.mdx`, not `GettingStarted.mdx`.
+- Node-specific docs live under `pages/docs/nodes/` with a clear folder structure that mirrors the product.
+- Every page should have YAML frontmatter with at least `title` and `description`. The description is used for SEO and link previews.
+
+## Page structure
+
+1. Start with a single H1 that matches or closely follows the `title` in frontmatter.
+2. Use H2 for major sections and H3 for subsections. Avoid skipping levels (do not jump from H2 to H4).
+3. Put the most important information in the first two paragraphs so readers and summarization tools see the gist immediately.
+
+## MDX and components
+
+- Use shared components from the design system (for example `Callout`, `Steps`, `SectionRows`) instead of one-off HTML when possible.
+- Prefer fenced code blocks with a language tag (` ```ts `, ` ```bash `) for syntax highlighting.
+- Keep imports at the top of the file after frontmatter, grouped and ordered consistently with sibling pages.
+
+<Callout type="info">
+Automation may strip or ignore some JSX when generating FAQs or embeddings. Write the core facts in plain markdown inside headings and paragraphs so they survive that processing.
+</Callout>
+
+## Writing style
+
+- Use second person ("you") for procedural steps and neutral third person for reference material.
+- Prefer short sentences and concrete examples over abstract marketing language.
+- Define acronyms on first use in a page unless they are universal (for example HTTP, API).
+- Use American English spelling unless the product explicitly targets another locale.
+
+## Links and cross-references
+
+- Link to other docs with relative paths or the site’s link pattern your project uses; avoid hard-coding production URLs that will break in preview environments.
+- When referring to another page by name, use the same wording as that page’s title so search and navigation stay aligned.
+
+## Code samples
+
+- Samples should be copy-pasteable where possible. If a value is a placeholder, mark it clearly (`YOUR_API_KEY`, `your-org`).
+- Show both minimal and realistic examples when it helps: a three-line snippet for clarity, then a fuller example for real use.
+
+## Review checklist
+
+Before merging a doc change, confirm:
+
+- Frontmatter `title` and `description` are accurate and free of typos.
+- Headings read well in the table of contents.
+- Code blocks run or build as written (or are explicitly marked as pseudocode).
+- No secrets, tokens, or internal-only URLs appear in the source.
+
+## Maintenance
+
+- When a feature changes, update the doc in the same pull request when practical.
+- If a page is deprecated, add a short note at the top and link to the replacement page rather than leaving stale content.
+
+Following this guide keeps documentation useful for humans and reliable for any workflows that listen for changes under `pages/docs/`.
