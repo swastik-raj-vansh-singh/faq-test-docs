@@ -1,0 +1,85 @@
+---
+title: Webhook Trigger
+description: Learn how to start Lamatic flows from HTTP webhooks, authenticate requests, and pass JSON payloads into downstream nodes.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Webhook Trigger
+
+<SectionRows section="Node Type" chips={["Trigger"]} />
+
+The Webhook Trigger starts a flow when an HTTP client sends a POST request to a unique URL. It is the entry point for integrations such as GitHub Actions, CRMs, form builders, and custom backends that need to push data into Lamatic in real time.
+
+## How It Works
+
+1. Lamatic generates a **webhook URL** and optional **secret key** for your flow.
+2. External systems POST JSON (or text) to that URL with the correct `Authorization` header when configured.
+3. The trigger parses the body and exposes fields like `content`, `filename`, or custom keys as `{{triggerNode.output}}` for the rest of the flow.
+4. If the flow is configured to respond synchronously, the HTTP response can include the final node output (depending on your project settings).
+
+## Authentication
+
+Most webhook setups use a bearer token:
+
+```http
+POST /your-webhook-path HTTP/1.1
+Authorization: Bearer <your-webhook-key>
+Content-Type: application/json
+```
+
+<Callout type="warning">
+Never commit webhook URLs or keys to public repositories. Store keys in GitHub Secrets, environment variables, or your backend vault.
+</Callout>
+
+## Payload Shape
+
+The body is typically JSON. For documentation sync (for example GitHub Actions), a common pattern is:
+
+```json
+{
+  "filename": "pages/docs/guide.mdx",
+  "content": "---\ntitle: Guide\n---\n\n# Hello"
+}
+```
+
+Downstream Code Nodes can read `path`, `file_path`, `filename`, `content`, or `markdown` depending on what the sender sends.
+
+## Timeouts and Reliability
+
+Webhook callers usually wait for a response. Long-running steps (LLM calls, external APIs) can exceed HTTP timeouts. Options include:
+
+- Keep the first segment of the flow fast and return `202 Accepted`, then continue async (if your platform supports it).
+- Split work: webhook only enqueues; a scheduler or queue worker runs the heavy flow.
+- Increase client timeout for trusted internal callers only.
+
+## Security Best Practices
+
+- Rotate webhook keys periodically and after suspected leaks.
+- Validate payload size and reject oversized bodies at the edge when possible.
+- Log request IDs for debugging without logging full secrets or PII.
+
+## Example: GitHub Action Caller
+
+<Steps>
+### Step 1
+Add a Webhook Trigger as the first node and deploy the flow.
+
+### Step 2
+Copy the webhook URL and key into your CI secrets (`WEBHOOK_URL`, `WEBHOOK_KEY`).
+
+### Step 3
+From the workflow, `curl` POST the changed file content as JSON with the bearer header.
+</Steps>
+
+## Limitations
+
+- Rate limits may apply per project or plan; batch large imports instead of hammering the endpoint.
+- Binary uploads are not ideal over JSON; use URLs to object storage and fetch with an API Node instead.
+- Duplicate deliveries can happen; design idempotent steps (for example upsert by primary key in an Index node).
+
+## Related Nodes
+
+Pair the Webhook Trigger with **Code Node** for parsing, **API Node** for side effects, **Chunk** and **Vectorize** for RAG indexing, or **Instructor LLM** for structured generation such as FAQs.
