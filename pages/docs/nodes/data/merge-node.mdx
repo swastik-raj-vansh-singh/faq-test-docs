@@ -1,0 +1,81 @@
+---
+title: Merge Node
+description: Learn how to combine outputs from multiple branches in a Lamatic flow so downstream nodes receive a single unified payload.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Merge Node
+
+<SectionRows section="Node Type" chips={["Flow"]} />
+
+The Merge Node waits for more than one upstream path to finish, then passes their results together to the next step. It is useful when different branches fetch data, run models, or validate inputs in parallel and you need one place to join the outcomes before a final Code Node, API call, or response.
+
+## How It Works
+
+1. Two or more nodes complete and each produces an output object.
+2. The Merge Node fires only after **all** configured inputs are ready (join semantics depend on your Lamatic version—typically “wait for all”).
+3. Downstream nodes reference each branch with distinct paths, for example `{{nodeA.output}}` and `{{nodeB.output}}`, or a merged structure if the platform provides one.
+
+## When to Use It
+
+| Scenario | Why merge |
+|---|---|
+| Parallel API calls | Combine user profile and permissions before rendering a prompt |
+| Fan-out LLM + rules | Join model output with a deterministic validator result |
+| Trigger + enrichment | Merge webhook payload with a database lookup |
+
+<Callout type="info">
+If one branch fails, the merge may not run. Add error handling or optional branches upstream so critical paths still complete when a non-essential branch fails.
+</Callout>
+
+## Configuration
+
+Typical settings include:
+
+- **Inputs**: Which node outputs feed the merge (names or IDs from the canvas)
+- **Mode**: All required vs any (if your product supports “first completed” joins)
+- **Output shape**: Flat merge, array of results, or custom mapping via a follow-up Code Node
+
+## Combining with Code Node
+
+After merging, a Code Node often normalizes the shape:
+
+```javascript
+const a = {{branchLeft.output}};
+const b = {{branchRight.output}};
+output = {
+  combined: true,
+  left: a,
+  right: b,
+  summary: (a.title || "") + " | " + (b.status || "")
+};
+```
+
+## Performance
+
+Parallel branches can reduce wall-clock time compared to sequential execution. Balance parallelism with rate limits on external APIs and with LLM quotas so merges do not stall waiting on the slowest branch.
+
+## Limitations
+
+- Deeply nested graphs with many merges are harder to debug; document branch purposes in node names.
+- Circular dependencies are invalid; the graph must remain a DAG.
+
+## Example: Dual Source RAG
+
+<Steps>
+### Step 1
+Branch A loads chunks from a vector DB; Branch B loads fresh text from an API Node.
+
+### Step 2
+Merge both branches when each returns.
+
+### Step 3
+Pass the merged context to an LLM Node or Response Node for a single answer that cites both sources.
+</Steps>
+
+## Related
+
+See **Code Node** for shaping merged data and **API Node** for parallel HTTP calls feeding a merge.
