@@ -45,3 +45,38 @@ Use a narrow cache key when only part of the input matters. For example, cache b
 ## Related
 
 See **API Node** for external calls that benefit from caching and **Code Node** for building custom cache keys.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "Which cache key should I use for the Cache Node?",
+    answer: "Choose a cache key that captures only the input fields that affect the downstream result. By default the Cache Node hashes the full input; override it with a template to narrow scope. For example, cache by file_path if file content rarely changes between runs. See the [Cache Node Configuration] docs for details."
+  },
+  {
+    question: "How does Cache Node TTL work, and what value should I use?",
+    answer: "TTL is the time in seconds that a cached entry remains valid before recomputation. The default is 3600 (1 hour), after which the same input triggers a fresh run and refreshes the cache. Use shorter TTLs for volatile data and longer ones for stable workloads. See the [Cache Node Limitations] section for expiration behavior."
+  },
+  {
+    question: "When should I use a Cache Node before an LLM or API node?",
+    answer: "Use a Cache Node when repeated identical inputs would re-run costly LLM or API calls. Common cases are unchanged document answers, rate-limited external services, and repeated lookups in loops or batches. Skip it when inputs change every run or freshness is required over speed. See the [API Node] docs for related patterns."
+  },
+  {
+    question: "What’s the difference between in-memory and persistent storage for caching?",
+    answer: "In-memory storage holds cache in process and is cleared on redeploy. Persistent storage records entries in a project-level store configured on the node. Pick in-memory for fast, ephemeral caching and persistent storage for project-level caching. See the [Cache Node Configuration] docs for storage options."
+  },
+  {
+    question: "Why am I getting cache misses when I expect a hit?",
+    answer: "Cache misses usually mean your key differs between runs or includes changing fields. The default full-input hash changes if any irrelevant field changes, and entries may also have expired due to TTL. In-memory caches are additionally cleared on redeploy. Narrow the key to stable fields; see [Cache Node Configuration]."
+  },
+  {
+    question: "Can I manually invalidate or purge Cache Node entries during development?",
+    answer: "No, manual purge isn’t available; cache invalidation is time-based only. Adjust the cache key or lower the TTL to force recomputation on the next run. Redeploying clears in-memory caches as a side effect. See the [Cache Node Limitations] section for details."
+  },
+  {
+    question: "Is it possible to cache only part of the input, like file_path?",
+    answer: "Yes, set the key template to the specific field you want to match. For example, use file_path so calls with the same path reuse cached results even if other inputs vary. This narrows what counts as “same input” compared to the default full-input hash. See the [Cache Node Configuration] docs for key templates."
+  }
+]} />
