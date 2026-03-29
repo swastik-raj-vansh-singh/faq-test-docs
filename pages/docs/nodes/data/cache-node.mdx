@@ -1,0 +1,47 @@
+---
+title: Cache Node
+description: Store and retrieve intermediate results in Lamatic flows to avoid redundant API calls and speed up repeated executions.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import SectionRows from '@/components/SectionRows'
+
+# Cache Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Cache Node stores the output of an upstream node so that subsequent runs with the same input can skip expensive operations like LLM calls or external API requests and return the cached result instead.
+
+## How It Works
+
+1. On the first run, the Cache Node passes the request through to the downstream node and stores the response keyed by a hash of the input.
+2. On later runs with identical input, it returns the stored response immediately without executing the downstream node.
+3. Cached entries expire after a configurable TTL (time to live).
+
+## Configuration
+
+| Setting | Description | Default |
+|---|---|---|
+| **Cache key** | Template expression that determines what counts as "same input" | Full input hash |
+| **TTL** | How long a cached entry stays valid (seconds) | 3600 (1 hour) |
+| **Storage** | Where cached data is kept (in-memory or project-level persistent store) | In-memory |
+
+<Callout type="info">
+Use a narrow cache key when only part of the input matters. For example, cache by `file_path` alone if the file content rarely changes between runs.
+</Callout>
+
+## When to Use It
+
+- Before an LLM node to avoid regenerating answers for unchanged documents.
+- Before an API Node that calls a rate-limited external service.
+- In loops or batch operations where the same lookup happens multiple times.
+
+## Limitations
+
+- In-memory caches are cleared when the flow is redeployed.
+- Very large cached values increase memory usage; prefer caching references or IDs over full payloads.
+- Cache invalidation is time-based only; there is no manual purge button in the current version.
+
+## Related
+
+See **API Node** for external calls that benefit from caching and **Code Node** for building custom cache keys.
