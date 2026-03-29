@@ -4,15 +4,18 @@ on:
   push:
     branches: [main]
     paths:
-      - 'pages/docs/*.mdx'
       - 'pages/docs/**/*.mdx'
 
 jobs:
   generate-faqs:
     runs-on: ubuntu-latest
-    # Skip if the commit was from the FAQ bot (prevents infinite loop when FAQ PRs are merged).
-    # head_commit can be null on some pushes; then we still run (do not skip).
-    if: ${{ github.event.head_commit == null || !contains(github.event.head_commit.message, 'docs(faq):') }}
+    # Skip when a FAQ PR is merged (prevents infinite loop).
+    # Catches: squash/rebase merges ("docs(faq):") and merge-commit merges ("faq/" branch name).
+    if: >-
+      ${{
+        !contains(github.event.head_commit.message || '', 'docs(faq):')
+        && !contains(github.event.head_commit.message || '', 'faq/')
+      }}
     steps:
       - name: Send Changed Docs to Lamatic FAQ Flow
         uses: Lamatic/Index-to-lamatic@v1.6
