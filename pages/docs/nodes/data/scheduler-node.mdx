@@ -1,0 +1,105 @@
+---
+title: Scheduler Node
+description: Learn how to trigger flow execution on a recurring schedule using the Scheduler Node in Lamatic with support for cron expressions and timezone-aware timing.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Scheduler Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Scheduler Node starts a flow automatically at defined time intervals. Instead of waiting for an external event like a webhook, a Scheduler Node acts as a built-in cron job that fires on a recurring basis — hourly, daily, weekly, or on any custom schedule defined by a cron expression.
+
+## How It Works
+
+1. You configure a schedule using a cron expression or a preset interval.
+2. The Lamatic scheduler evaluates the expression and triggers the flow at each matching time.
+3. The Scheduler Node passes a context object to the first downstream node containing the trigger timestamp and run metadata.
+4. The rest of the flow executes normally as if it were triggered by a webhook.
+
+## Configuration
+
+| Setting | Description | Required |
+|---|---|---|
+| **Schedule** | A cron expression (e.g. `0 9 * * 1-5`) or a preset (`every_hour`, `every_day`, `every_week`) | Yes |
+| **Timezone** | IANA timezone string (e.g. `America/New_York`, `UTC`). All schedule evaluations use this timezone. | No (defaults to `UTC`) |
+| **Enabled** | Toggle the schedule on or off without deleting the configuration | No (defaults to `true`) |
+| **Overlap policy** | What happens if a new trigger fires while the previous run is still executing: `skip`, `queue`, or `allow` | No (defaults to `skip`) |
+
+### Common Cron Expressions
+
+| Expression | Meaning |
+|---|---|
+| `0 * * * *` | Every hour at minute 0 |
+| `0 9 * * *` | Every day at 09:00 |
+| `0 9 * * 1-5` | Weekdays at 09:00 |
+| `0 0 * * 0` | Every Sunday at midnight |
+| `*/15 * * * *` | Every 15 minutes |
+
+## When to Use It
+
+- **Daily digests**: Summarize new content, tickets, or metrics and email a report every morning.
+- **Data sync**: Pull records from an external API on a recurring basis and upsert them into your vector database.
+- **Stale data cleanup**: Run a weekly flow that identifies and archives outdated documents from an index.
+- **Health checks**: Ping an endpoint every 15 minutes and alert via Email Node if the response is unhealthy.
+
+<Callout type="info">
+The Scheduler Node replaces the need for external cron services or task schedulers. All scheduling state is managed within Lamatic and visible in the flow run history.
+</Callout>
+
+## Output Fields
+
+Each time the Scheduler Node fires, it provides the following context to downstream nodes:
+
+- `{{schedulerNode_1.output.triggered_at}}` — ISO 8601 timestamp of when the schedule fired
+- `{{schedulerNode_1.output.run_id}}` — unique identifier for this scheduled run
+- `{{schedulerNode_1.output.schedule}}` — the cron expression or preset that triggered the run
+- `{{schedulerNode_1.output.timezone}}` — the timezone used for evaluation
+
+## Overlap Policies
+
+| Policy | Behavior |
+|---|---|
+| `skip` | If the previous run is still active, the new trigger is silently dropped |
+| `queue` | The new trigger waits in a queue and runs after the previous execution finishes |
+| `allow` | The new run starts immediately in parallel with the existing one |
+
+<Callout type="warning">
+Use `allow` with caution. Concurrent runs that write to the same database or API may produce duplicate records or race conditions. Prefer `skip` or `queue` for flows with side effects.
+</Callout>
+
+## Example: Daily Index Refresh
+
+<Steps>
+### Step 1
+A Scheduler Node is configured with the expression `0 3 * * *` (every day at 03:00 UTC).
+
+### Step 2
+At 03:00, the Scheduler Node triggers and passes the timestamp to an API Node that fetches updated records from a CRM.
+
+### Step 3
+The records are processed through a Text Splitter and Vectorize pipeline.
+
+### Step 4
+An Index Node upserts the fresh embeddings into the vector database, keeping the search index current without any manual intervention.
+</Steps>
+
+## Performance Considerations
+
+- Scheduled flows consume the same execution quota as webhook-triggered flows. High-frequency schedules (every minute) on complex pipelines can exhaust your plan's execution budget quickly.
+- The `queue` overlap policy holds pending triggers in memory. If runs consistently take longer than the interval, the queue can grow and delay subsequent runs significantly.
+- For schedules more frequent than every 5 minutes, ensure downstream nodes can handle the throughput without hitting external rate limits.
+
+## Limitations
+
+- The minimum supported interval is once per minute (`* * * * *`).
+- A single flow can have only one Scheduler Node; use separate flows for different schedules.
+- Scheduler Nodes cannot be combined with a Webhook Trigger in the same flow — choose one entry point per flow.
+- Missed triggers during platform maintenance windows are not retroactively fired; use the manual run button to backfill if needed.
+
+## Related
+
+See **Webhook Trigger** for event-driven flow entry points, **Batch Node** for processing arrays of records fetched on a schedule, and **Email Node** for delivering scheduled reports and alerts.

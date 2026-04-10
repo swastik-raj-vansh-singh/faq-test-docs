@@ -1,0 +1,94 @@
+---
+title: Rate Limiter Node
+description: Learn how to throttle downstream execution and control request throughput using the Rate Limiter Node in Lamatic to stay within external API limits.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Rate Limiter Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Rate Limiter Node controls how many times downstream nodes are invoked within a given time window. It sits between a data source and any node that calls an external service, ensuring your flow never exceeds the target API's published rate limits. When the limit is reached, the node holds incoming requests in a queue and releases them as capacity becomes available.
+
+## How It Works
+
+1. Data arrives at the Rate Limiter Node from an upstream node.
+2. The node checks whether the current window still has available capacity.
+3. If capacity is available, the data is forwarded immediately to the next node.
+4. If the limit has been reached, the data is held in an internal queue until the window resets or a slot opens.
+
+## Configuration
+
+| Setting | Description | Required |
+|---|---|---|
+| **Max requests** | Maximum number of requests allowed per time window | Yes |
+| **Window** | Duration of the rate limit window: `second`, `minute`, or `hour` | Yes |
+| **Strategy** | `fixed_window` resets the counter at fixed intervals; `sliding_window` uses a rolling time frame | No (defaults to `fixed_window`) |
+| **Queue size** | Maximum number of requests that can wait in the queue; excess requests are dropped | No (defaults to `100`) |
+| **Timeout** | How long a queued request waits before being dropped, in seconds | No (defaults to `60`) |
+
+## When to Use It
+
+- **Third-party API compliance**: Enforce the exact rate limit documented by an external API (e.g. 60 requests per minute for OpenAI, 10 requests per second for a CRM endpoint).
+- **Batch processing protection**: Wrap an API Node inside a Batch loop with a Rate Limiter to prevent the batch from overwhelming the target service.
+- **Cost control**: Cap the number of LLM calls per hour to avoid unexpected billing spikes during development or testing.
+- **Shared resource fairness**: When multiple flows call the same service, place a Rate Limiter in each flow to distribute capacity fairly.
+
+<Callout type="info">
+The Rate Limiter Node does not modify the data passing through it. It only controls timing — delaying requests when necessary and forwarding them unchanged when capacity is available.
+</Callout>
+
+## Output Fields
+
+- `{{rateLimiterNode_1.output.data}}` — the original input data, forwarded unchanged
+- `{{rateLimiterNode_1.output.waited}}` — `true` if the request was queued before being released
+- `{{rateLimiterNode_1.output.wait_ms}}` — number of milliseconds the request spent in the queue (0 if not queued)
+- `{{rateLimiterNode_1.output.queue_depth}}` — number of requests still waiting in the queue at the time this request was released
+
+## Fixed Window vs Sliding Window
+
+| Strategy | Behavior | Best for |
+|---|---|---|
+| `fixed_window` | Counter resets at the start of each window (e.g. every minute at :00). Simple but can allow bursts at window boundaries. | APIs with per-minute hard limits that reset on the clock |
+| `sliding_window` | Uses a rolling time frame so the counter reflects the actual last N seconds/minutes. Smoother throughput distribution. | APIs sensitive to burst traffic or with rolling rate limit counters |
+
+<Callout type="warning">
+If an external API uses a sliding window internally but you configure a fixed window, you may still hit 429 errors at window boundaries due to burst behavior. Match your strategy to the API's documented rate limit mechanism when possible.
+</Callout>
+
+## Example: Throttle Embedding Calls in a Batch Loop
+
+<Steps>
+### Step 1
+A Batch Node iterates over 500 document chunks that need to be embedded via an external embedding API limited to 100 requests per minute.
+
+### Step 2
+A Rate Limiter Node is placed between the Batch Node and the Vectorize Node with `max_requests: 100` and `window: minute`.
+
+### Step 3
+The first 100 chunks are forwarded immediately. Chunk 101 is held in the queue until the one-minute window resets.
+
+### Step 4
+The queue drains steadily, processing all 500 chunks in approximately 5 minutes with zero 429 errors from the embedding provider.
+</Steps>
+
+## Performance Considerations
+
+- The Rate Limiter Node adds zero latency when the limit has not been reached — data passes through instantly.
+- Queued requests consume memory proportional to the payload size. For large payloads (multi-megabyte documents), keep the queue size low or reduce batch sizes upstream.
+- In `sliding_window` mode the node tracks timestamps for each request in the current window, which uses slightly more memory than `fixed_window` but provides smoother throughput.
+- If the timeout expires before a queued request is released, the request is dropped and the flow logs a warning. Monitor dropped requests to determine if your limits or queue size need adjustment.
+
+## Limitations
+
+- The Rate Limiter Node operates per flow execution. It does not coordinate limits across multiple concurrent flow runs or across different flows calling the same API.
+- The minimum window is `second`; sub-second rate limiting is not supported.
+- Queue size is capped at 1000 requests per Rate Limiter Node.
+- The Rate Limiter Node cannot dynamically adjust limits at runtime based on API response headers (such as `Retry-After`). For adaptive throttling, add a Code Node downstream that reads response headers and introduces a manual delay.
+
+## Related
+
+See **Batch Node** for iterating over arrays with controlled concurrency, **API Node** for making the external calls that the Rate Limiter protects, and **Code Node** for implementing custom retry or backoff logic based on API response headers.
