@@ -103,3 +103,38 @@ An Index Node upserts the fresh embeddings into the vector database, keeping the
 ## Related
 
 See **Webhook Trigger** for event-driven flow entry points, **Batch Node** for processing arrays of records fetched on a schedule, and **Email Node** for delivering scheduled reports and alerts.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "How do I schedule weekdays at 9:00 in my local timezone?",
+    answer: "Use the cron expression 0 9 * * 1-5 and set the Timezone setting to your IANA zone. If you leave Timezone blank it defaults to UTC, so specify something like America/New_York to evaluate at 09:00 Eastern. See the [Configuration] section for timezone details and examples."
+  },
+  {
+    question: "What happens if a new schedule triggers while the previous run continues?",
+    answer: "The overlap policy controls this behavior: skip, queue, or allow. Skip drops the new trigger, queue waits until the current run finishes, and allow starts another run in parallel. Use allow cautiously for flows that write to external systems. See the [Overlap Policies] section."
+  },
+  {
+    question: "Scheduler Node vs Webhook Trigger: when should I use each entry point?",
+    answer: "Use a Scheduler Node for time-based, recurring runs; use a Webhook Trigger for external events. They cannot be combined in the same flow, so choose one entry point. For both behaviors, set up separate flows and coordinate downstream processing. See the [Webhook Trigger] docs."
+  },
+  {
+    question: "Can I run schedules more frequently than once per minute in Lamatic?",
+    answer: "No, the minimum supported interval is once per minute. Very frequent schedules can quickly consume your execution quota and impact downstream services. For high-frequency schedules, ensure downstream nodes can handle throughput and avoid external rate limits. See [Performance Considerations]."
+  },
+  {
+    question: "How do I reference the Scheduler trigger timestamp inside downstream nodes?",
+    answer: "Use the template variable {{schedulerNode_1.output.triggered_at}} in downstream nodes. You can also access {{schedulerNode_1.output.run_id}}, {{schedulerNode_1.output.schedule}}, and {{schedulerNode_1.output.timezone}}. These are emitted by the Scheduler Node as part of its output context. See the [Output Fields] section."
+  },
+  {
+    question: "Why didn’t my scheduled job run during maintenance, and how to backfill?",
+    answer: "Scheduled triggers missed during platform maintenance are not replayed automatically. To backfill, use the manual run button to execute the flow for the missed period. Review the run history to confirm what executed and when. See the [Flow Run History] page."
+  },
+  {
+    question: "Can a single flow include multiple Scheduler Nodes for different intervals?",
+    answer: "No, a flow can include only one Scheduler Node. Create separate flows to run on different schedules. Scheduler Nodes also cannot be combined with a Webhook Trigger in the same flow. See the [Webhook Trigger] docs."
+  }
+]} />
