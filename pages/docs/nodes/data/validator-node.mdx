@@ -1,0 +1,135 @@
+---
+title: Validator Node
+description: Learn how to enforce data contracts and schema rules on flow payloads using the Validator Node in Lamatic before passing data to downstream nodes.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Validator Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Validator Node checks that incoming data conforms to a defined schema or set of rules before allowing it to proceed. If validation passes, the original data flows through unchanged. If it fails, the node either halts the flow with a descriptive error or routes execution to a dedicated error branch depending on your configuration.
+
+## How It Works
+
+1. An upstream node produces an object, string, array, or number.
+2. The Validator Node evaluates the data against each configured rule in sequence.
+3. If all rules pass, the data is forwarded to the next node exactly as received.
+4. If any rule fails, the node triggers the configured failure behavior — halt or error branch.
+
+## Configuration
+
+| Setting | Description | Required |
+|---|---|---|
+| **Input field** | Template reference to the value to validate, e.g. `{{webhookTrigger.output.body}}` | Yes |
+| **Rules** | Ordered list of validation rules applied top to bottom | Yes |
+| **Failure mode** | `halt` stops the flow and surfaces an error message; `branch` routes to the error output instead | No (defaults to `halt`) |
+| **Error message** | Custom message surfaced when validation fails, supports template variables | No |
+
+### Rule Types
+
+| Rule | Description | Example |
+|---|---|---|
+| `required` | Field must be present and non-null | `email` is required |
+| `type` | Field must match a data type (`string`, `number`, `boolean`, `array`, `object`) | `age` must be a `number` |
+| `min_length` / `max_length` | String length bounds | `title` must have `min_length` 3 |
+| `min` / `max` | Numeric range bounds | `score` must be between `0` and `1` |
+| `pattern` | Field must match a regular expression | `email` matches `^[\w.]+@[\w.]+\.\w+$` |
+| `enum` | Field value must be one of a fixed set | `status` is one of `active`, `inactive`, `pending` |
+| `custom` | An expression evaluated against the full input context | `{{input.endDate}} > {{input.startDate}}` |
+
+## When to Use It
+
+- **Webhook payloads**: Reject malformed or incomplete requests at the entry point before they corrupt downstream state.
+- **LLM output validation**: Confirm that a language model returned a parseable JSON object with required keys before passing it to an Index Node.
+- **User-submitted forms**: Enforce field formats (email, phone, URL) before triggering any processing logic.
+- **Cross-field consistency**: Use a `custom` rule to assert that one field's value is logically consistent with another, such as an end date being after a start date.
+
+<Callout type="warning">
+Avoid duplicating validation logic across multiple nodes. Place a single Validator Node at the boundary where external data enters the flow, then trust the data is valid further downstream.
+</Callout>
+
+## Output Fields
+
+When validation passes, the Validator Node exposes the original data unchanged:
+
+- `{{validatorNode_1.output.data}}` — the validated input value
+- `{{validatorNode_1.output.valid}}` — always `true` when the success path is taken
+
+When failure mode is set to `branch`, the error output exposes:
+
+- `{{validatorNode_1.output.valid}}` — `false`
+- `{{validatorNode_1.output.errors}}` — array of rule failure objects, each with `field` and `message` properties
+
+## Example: Validate a Webhook Payload Before Indexing
+
+<Steps>
+### Step 1
+A Webhook Trigger receives a JSON body that is expected to contain `title` (string), `content` (string), and `score` (number between 0 and 1).
+
+### Step 2
+The Validator Node is configured with four rules:
+- `title` — `required`, `type: string`, `min_length: 1`
+- `content` — `required`, `type: string`
+- `score` — `required`, `type: number`, `min: 0`, `max: 1`
+
+### Step 3
+A payload missing `score` fails the `required` rule. The Validator Node halts the flow and returns a `400`-style error response via the Response Node on the error branch.
+
+### Step 4
+A valid payload passes all rules. The data flows to the Index Node and is written to the vector database.
+</Steps>
+
+## Performance Considerations
+
+- Rule evaluation is synchronous and in-memory; even large rule sets add only microseconds of latency.
+- `custom` rules that reference upstream template variables are resolved at runtime and have the same cost as any other template interpolation.
+- Validation happens before any expensive downstream work (LLM calls, API requests, database writes), so catching errors early saves significant execution time and cost.
+
+## Limitations
+
+- The `pattern` rule uses standard RE2 syntax; lookaheads and backreferences are not supported.
+- Nested object validation (validating fields inside a deeply nested object) requires one Validator Node per nesting level or a `custom` rule.
+- The Validator Node cannot modify data — use a Data Mapper Node before or after validation if transformation is also needed.
+
+## Related
+
+See **Conditional Node** for simple boolean branching, **Data Mapper** for transforming fields before validation, and **Response Node** for returning structured error responses to callers when validation fails.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "What does the Validator Node do when all rules pass?",
+    answer: "When all configured rules pass, the Validator Node forwards the original data to the next downstream node completely unchanged. It also sets the output field `valid` to `true`. The Validator Node never modifies the data — it only decides whether the data is allowed to continue through the flow."
+  },
+  {
+    question: "What is the difference between the 'halt' and 'branch' failure modes?",
+    answer: "In 'halt' mode, a validation failure immediately stops the entire flow and surfaces a descriptive error message, optionally customized with template variables. In 'branch' mode, execution is redirected to the Validator Node's error output instead, where you can connect additional nodes to handle the failure gracefully — for example, returning a structured error response or logging the failure."
+  },
+  {
+    question: "Can the Validator Node check multiple fields in a single configuration?",
+    answer: "Yes. You can add as many rules as needed, each targeting a different field or applying a different constraint to the same field. Rules are evaluated in order from top to bottom. If any single rule fails and the failure mode is 'halt', evaluation stops immediately. In 'branch' mode, all rules are evaluated and every failure is collected into the output errors array."
+  },
+  {
+    question: "How do I validate that one field's value is greater than another field's value?",
+    answer: "Use a 'custom' rule with an expression that references both fields via template syntax, for example `{{input.endDate}} > {{input.startDate}}`. Custom rules are evaluated against the full input context so you can compare any two fields or combine multiple conditions into a single assertion."
+  },
+  {
+    question: "Where in a flow should I place the Validator Node?",
+    answer: "Place the Validator Node as close to the data entry point as possible — typically right after a Webhook Trigger, File Loader, or any node that ingests external data. Validating early prevents malformed data from reaching expensive downstream operations like LLM calls, API requests, or database writes, saving both execution time and cost."
+  },
+  {
+    question: "Can the Validator Node transform or clean data, such as trimming whitespace?",
+    answer: "No. The Validator Node is read-only — it evaluates rules but never modifies the data. If you need to clean or transform fields before or after validation, use a Data Mapper Node. A common pattern is Data Mapper → Validator Node to normalize the data first and then confirm it meets the required schema."
+  },
+  {
+    question: "What regular expression syntax does the 'pattern' rule support?",
+    answer: "The 'pattern' rule uses RE2 syntax, which covers the most common regex constructs including character classes, quantifiers, anchors, and groups. Lookaheads, lookbehinds, and backreferences are not supported because RE2 guarantees linear time matching. If your validation requires these features, use a 'custom' rule with a Code Node upstream to perform the check."
+  }
+]} />
