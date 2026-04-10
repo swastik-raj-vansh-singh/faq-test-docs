@@ -17,12 +17,63 @@ jobs:
         && !contains(github.event.head_commit.message || '', 'faq/')
       }}
     steps:
-      - name: Send Changed Docs to Lamatic FAQ Flow
-        uses: Lamatic/Index-to-lamatic@v1.6
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          webhook_url: ${{ secrets.FAQ_WEBHOOK_URL }}
-          webhook_key: ${{ secrets.FAQ_WEBHOOK_KEY }}
-          github_ref: ${{ github.ref }}
-          file_type: "mdx"
-          mode: "incremental"
-          verbose: "true"
+          fetch-depth: 2
+
+      - name: Get changed MDX files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only --diff-filter=ACM HEAD~1 HEAD -- 'pages/docs/**/*.mdx' | tr '\n' ' ')
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+          COUNT=$(echo "$FILES" | wc -w | tr -d ' ')
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Changed MDX files ($COUNT): $FILES"
+
+      - name: Send each changed doc to Lamatic FAQ Flow
+        if: steps.changed.outputs.count != '0'
+        env:
+          FAQ_WEBHOOK_URL: ${{ secrets.FAQ_WEBHOOK_URL }}
+          FAQ_WEBHOOK_KEY: ${{ secrets.FAQ_WEBHOOK_KEY }}
+        run: |
+          FILES="${{ steps.changed.outputs.files }}"
+          TOTAL=$(echo "$FILES" | wc -w | tr -d ' ')
+          CURRENT=0
+
+          for FILE in $FILES; do
+            CURRENT=$((CURRENT + 1))
+            echo "=== Processing file $CURRENT/$TOTAL: $FILE ==="
+
+            # Read file content
+            CONTENT=$(cat "$FILE")
+
+            # Build JSON payload
+            PAYLOAD=$(jq -n \
+              --arg path "$FILE" \
+              --arg content "$CONTENT" \
+              '{path: $path, content: $content}')
+
+            # Send to Lamatic webhook
+            HTTP_STATUS=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+              -X POST "$FAQ_WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $FAQ_WEBHOOK_KEY" \
+              -d "$PAYLOAD")
+
+            echo "Response status: $HTTP_STATUS"
+            cat /tmp/response.json
+            echo ""
+
+            if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+              echo "::warning::Webhook call failed for $FILE with status $HTTP_STATUS"
+            fi
+
+            # Wait between calls to avoid race conditions in the flow
+            if [ "$CURRENT" -lt "$TOTAL" ]; then
+              echo "Waiting 30s before next file to let the flow complete..."
+              sleep 30
+            fi
+          done
+
+          echo "=== Done: sent $TOTAL file(s) to FAQ flow ==="
