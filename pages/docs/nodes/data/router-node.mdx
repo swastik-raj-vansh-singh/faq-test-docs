@@ -1,0 +1,126 @@
+---
+title: Router Node
+description: Learn how to route flow execution to different downstream paths based on dynamic conditions using the Router Node in Lamatic.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Router Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Router Node evaluates a set of conditions against the current flow context and forwards execution to one or more downstream branches. Instead of duplicating logic across separate flows, a single Router Node acts as a traffic controller that sends data to the right path at runtime.
+
+## How It Works
+
+1. An upstream node provides data — a classification label, a score, a status code, or any other field.
+2. The Router Node evaluates each configured route in order from top to bottom.
+3. The first route whose condition matches receives the data and continues execution. All other branches are skipped (unless **match all** mode is enabled).
+
+## Configuration
+
+| Setting | Description | Required |
+|---|---|---|
+| **Routes** | An ordered list of named branches, each with a condition expression | Yes |
+| **Default route** | The branch to use when no route condition matches | No |
+| **Match mode** | `first` sends data to the first matching branch; `all` sends data to every matching branch in parallel | No (defaults to `first`) |
+
+### Route Conditions
+
+Conditions are written as simple expressions referencing upstream node outputs:
+
+```
+{{classifyNode.output.label}} == "urgent"
+{{scoreNode.output.score}} >= 0.85
+{{webhookTrigger.output.body.status}} != "active"
+```
+
+String comparisons are case-sensitive. Numeric comparisons support `==`, `!=`, `<`, `<=`, `>`, and `>=`.
+
+## When to Use It
+
+- **Multi-class routing**: Send documents classified as "invoice", "contract", or "receipt" to dedicated processing pipelines.
+- **Confidence thresholds**: Route high-confidence results directly to storage while low-confidence ones go to a human-review queue.
+- **Status-based branching**: Forward webhook payloads differently depending on the event type field in the request body.
+- **A/B logic**: Split traffic between two downstream implementations for experimentation.
+
+<Callout type="info">
+The Router Node does not transform or modify the data — it only determines which downstream path receives it. Apply transformations in the branches themselves.
+</Callout>
+
+## Accessing Route Context
+
+Inside each downstream branch, all upstream node outputs remain accessible using the standard template syntax. The Router Node itself does not add new output fields; it simply passes the current context forward unchanged.
+
+## Default Route Behavior
+
+If no route condition matches and no default route is configured, the Router Node throws a routing error and halts the flow. To prevent silent failures, always configure a default route or ensure conditions are exhaustive.
+
+## Example: Route Support Tickets by Priority
+
+<Steps>
+### Step 1
+A Webhook Trigger receives an incoming support ticket with a `priority` field set to `"high"`, `"medium"`, or `"low"`.
+
+### Step 2
+The Router Node evaluates three routes in order:
+- Route A: `{{webhookTrigger.output.body.priority}} == "high"` → escalation pipeline
+- Route B: `{{webhookTrigger.output.body.priority}} == "medium"` → standard queue
+- Route C: Default route → low-priority archive
+
+### Step 3
+A high-priority ticket matches Route A and is immediately forwarded to the escalation pipeline. Medium and low tickets flow to their respective branches.
+</Steps>
+
+## Performance Considerations
+
+- In `first` match mode the Router Node has negligible overhead — it evaluates conditions top to bottom and stops at the first match.
+- In `all` match mode, matched branches execute in parallel. Account for concurrent downstream resource usage when setting concurrency budgets on nested Batch or API Nodes.
+- Keep condition expressions simple and avoid calling external services inside conditions; use a dedicated node upstream to compute any complex values first.
+
+## Limitations
+
+- A maximum of 20 routes can be configured per Router Node.
+- Conditions support only field references and comparison operators; arbitrary code expressions are not evaluated.
+- Circular routes (a branch looping back to the same Router Node) are not supported and will cause a validation error on save.
+
+## Related
+
+See **Conditional Node** for simple two-branch if/else logic, **Batch Node** for iterating over arrays across a single pipeline, and **Merge Node** for combining outputs from multiple branches back into one stream.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "What is a Router Node and how does it differ from a Conditional Node?",
+    answer: "A Router Node evaluates multiple named route conditions and directs flow execution to one or more downstream branches based on those conditions. A Conditional Node handles simple two-branch if/else logic. Use a Router Node when you have three or more distinct paths, or when you need to match all applicable branches in parallel rather than taking a single yes/no fork."
+  },
+  {
+    question: "In what order does the Router Node evaluate route conditions?",
+    answer: "The Router Node evaluates routes from top to bottom in the order they are listed in the configuration. In 'first' match mode it stops at the first matching route and ignores the rest. In 'all' match mode it continues evaluating every route and forwards the data to all branches whose conditions are satisfied."
+  },
+  {
+    question: "What happens if no route condition matches and there is no default route?",
+    answer: "If no route condition matches and no default route is configured, the Router Node throws a routing error and halts the flow. To avoid silent failures, always add a default route as a catch-all or ensure your set of conditions is exhaustive so at least one branch always matches."
+  },
+  {
+    question: "Can a Router Node send data to multiple branches at the same time?",
+    answer: "Yes. Setting the match mode to 'all' causes the Router Node to evaluate every route and forward the data to each branch whose condition matches. Those branches then execute in parallel. The default 'first' mode stops at the first match and only activates one branch."
+  },
+  {
+    question: "What expression syntax does the Router Node support for conditions?",
+    answer: "Conditions reference upstream node output fields using the standard template syntax, for example {{classifyNode.output.label}} == \"urgent\" or {{scoreNode.output.score}} >= 0.85. Supported operators are ==, !=, <, <=, >, and >=. String comparisons are case-sensitive. Arbitrary code expressions are not evaluated inside conditions."
+  },
+  {
+    question: "Does the Router Node modify the data it receives before passing it to a branch?",
+    answer: "No. The Router Node does not transform or modify data in any way. It only determines which downstream branch receives execution. All upstream node outputs remain accessible inside the chosen branch through the standard template syntax, exactly as they were before routing."
+  },
+  {
+    question: "How many routes can be configured on a single Router Node?",
+    answer: "A single Router Node supports a maximum of 20 routes. If your routing logic requires more than 20 branches, consider chaining multiple Router Nodes in sequence or restructuring the flow to consolidate similar branches upstream using a classification or scoring node."
+  }
+]} />
