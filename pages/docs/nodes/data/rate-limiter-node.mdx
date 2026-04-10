@@ -92,3 +92,38 @@ The queue drains steadily, processing all 500 chunks in approximately 5 minutes 
 ## Related
 
 See **Batch Node** for iterating over arrays with controlled concurrency, **API Node** for making the external calls that the Rate Limiter protects, and **Code Node** for implementing custom retry or backoff logic based on API response headers.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "How should I choose between fixed_window and sliding_window strategies for rate limiting?",
+    answer: "Choose fixed_window for clock-based limits and sliding_window for rolling counters or burst-sensitive APIs. Fixed windows reset on the minute/second boundary and can briefly allow bursts at the edge. Sliding windows track recent requests for smoother throughput that better matches providers using rolling limits. See the [Fixed vs Sliding Window] section for details."
+  },
+  {
+    question: "Why do I still see 429 errors when using a Rate Limiter Node?",
+    answer: "You can still hit 429s if the provider uses a sliding counter while your node is configured for a fixed window or if bursts occur at window boundaries. Switch the Strategy to sliding_window or reduce Max requests to align with the provider’s documented limit. Ensure your Window matches the provider’s unit (second, minute, or hour). For adaptive delays based on Retry-After headers, add a downstream [Code Node]."
+  },
+  {
+    question: "What happens to requests when the queue size is exceeded or timeout hits?",
+    answer: "Requests beyond Queue size are dropped immediately, and queued requests that exceed Timeout are dropped when their wait expires. Dropped items trigger a warning in the flow logs so you can tune limits or queue size. The node never alters payloads; it only controls timing. See the [Output Fields] section to inspect waited, wait_ms, and queue_depth."
+  },
+  {
+    question: "Which settings map to a provider’s per-second or per-minute rate limits?",
+    answer: "Set Max requests to the provider’s published limit and Window to the provider’s time unit. For example, use 100 and minute for an API that allows 100 requests per minute. Pick Strategy to mirror how the provider counts (fixed reset vs rolling window). See [Fixed vs Sliding Window] for guidance on choosing the strategy."
+  },
+  {
+    question: "Does the Rate Limiter coordinate limits across multiple flows or concurrent executions?",
+    answer: "No, it applies limits per flow execution and does not share state across flows or runs. If several flows call the same API, place a Rate Limiter Node in each flow to distribute capacity fairly. It does not coordinate limits across multiple concurrent flow runs or across different flows calling the same API."
+  },
+  {
+    question: "Where can I see whether a request queued and its wait time?",
+    answer: "Use output.waited (boolean) and output.wait_ms (milliseconds) to see if and how long a request queued. The original payload is forwarded as output.data without modification. You can also read output.queue_depth to know how many items remained queued when this request was released. See the [Output Fields] section for the exact field names."
+  },
+  {
+    question: "When should I place a Rate Limiter around batch API calls?",
+    answer: "Use it whenever a Batch loop might overwhelm an external service’s rate limit. For example, set max_requests: 100 and window: minute to process 500 items in about 5 minutes against a 100 rpm cap without 429s. Place the Rate Limiter between the Batch Node and the API-calling node. See the [Batch Node] and [API Node] docs for setup patterns."
+  }
+]} />
