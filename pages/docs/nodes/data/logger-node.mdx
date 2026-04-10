@@ -1,0 +1,139 @@
+---
+title: Logger Node
+description: Learn how to capture, annotate, and persist flow execution data at any point in a pipeline using the Logger Node in Lamatic for debugging and observability.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Logger Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Logger Node writes a structured log entry at any point in a flow without interrupting execution. It captures upstream data, attaches optional metadata, and routes the entry to one or more configured destinations — the Lamatic run log, an external logging service, or a database table. The original data passes through unchanged so the Logger Node can be inserted anywhere in a pipeline without altering its behavior.
+
+## How It Works
+
+1. The Logger Node receives the current flow context from an upstream node.
+2. It assembles a log entry from the configured fields and any static metadata you provide.
+3. The entry is written to the configured destination(s) asynchronously.
+4. The original data is forwarded to the next node exactly as received.
+
+## Configuration
+
+| Setting | Description | Required |
+|---|---|---|
+| **Label** | Human-readable name for this log point, shown in the run log UI | Yes |
+| **Fields** | Template references to the values to capture, e.g. `{{llmNode_1.output.text}}` | Yes |
+| **Level** | Log severity: `debug`, `info`, `warn`, or `error` | No (defaults to `info`) |
+| **Destination** | Where to write the entry: `run_log`, `external` (HTTP endpoint), or `database` | No (defaults to `run_log`) |
+| **Metadata** | Static key-value pairs appended to every entry, such as environment or version tags | No |
+| **Mask fields** | List of field names whose values are redacted before logging | No |
+
+### Destinations
+
+| Destination | Description |
+|---|---|
+| `run_log` | Entries appear in the Lamatic flow run detail view alongside node outputs |
+| `external` | Entries are POSTed as JSON to a configured HTTP endpoint (e.g. Datadog, Logtail, Axiom) |
+| `database` | Entries are inserted as rows into a connected database integration |
+
+## When to Use It
+
+- **Debugging**: Inspect intermediate values between two nodes without modifying the pipeline structure.
+- **Audit trails**: Record every decision made by a Conditional or Router Node for compliance purposes.
+- **LLM observability**: Log prompts, completions, token counts, and latency at each LLM call.
+- **Error capture**: Place a Logger Node on the error branch of a Validator Node to persist failure details before the flow exits.
+
+<Callout type="info">
+Logger Node writes are asynchronous — they do not add latency to the critical path of your flow. However, entries may appear in external destinations with a short delay (typically under one second).
+</Callout>
+
+## Output Fields
+
+The Logger Node forwards all upstream outputs unchanged and adds:
+
+- `{{loggerNode_1.output.entryId}}` — unique identifier of the log entry that was written
+- `{{loggerNode_1.output.logged}}` — `true` if the entry was successfully dispatched to the destination
+
+## Masking Sensitive Data
+
+Use the **Mask fields** setting to redact values before they reach any destination. Masked fields are replaced with `[REDACTED]` in the stored entry. This is useful for PII such as email addresses, API keys passed through a flow, or any value that should not appear in logs.
+
+<Callout type="warning">
+Masking applies only to the Logger Node's own output destination. It does not redact values from other nodes or from the main run log entries written by the Lamatic platform itself.
+</Callout>
+
+## Example: Log LLM Inputs and Outputs for Observability
+
+<Steps>
+### Step 1
+A Webhook Trigger receives a user question and passes it to an LLM Node.
+
+### Step 2
+A Logger Node is placed immediately after the LLM Node with:
+- **Label**: `LLM call`
+- **Fields**: `{{webhookTrigger.output.body.question}}`, `{{llmNode_1.output.text}}`, `{{llmNode_1.output.usage.totalTokens}}`
+- **Level**: `info`
+- **Destination**: `external` pointing to your Axiom dataset endpoint
+
+### Step 3
+Every time the flow runs, the question, the model response, and the token count are captured in Axiom without adding any measurable latency to the user-facing response.
+
+### Step 4
+The LLM output continues to the Response Node and is returned to the caller as normal.
+</Steps>
+
+## Performance Considerations
+
+- Log writes to `run_log` are in-memory and add negligible overhead.
+- Writes to `external` destinations involve an outbound HTTP request made asynchronously off the critical path; network latency does not affect flow execution time.
+- Writes to `database` destinations use the same connection pool as other database nodes and count against your connection limit.
+- Avoid logging very large payloads (multi-megabyte strings or arrays) to external destinations on high-throughput flows; prefer logging summary fields or counts instead.
+
+## Limitations
+
+- A single Logger Node can capture up to 50 fields per entry.
+- Log entries written to `run_log` are retained according to your project's run history retention policy.
+- The Logger Node cannot modify or filter data — use a Data Mapper Node before logging if you need to reshape the entry.
+- Circular references in the captured data (objects that reference themselves) will cause the serialization step to fail; flatten such structures upstream before logging.
+
+## Related
+
+See **Conditional Node** and **Router Node** for branching logic whose decisions you may want to audit, **Validator Node** for generating error-branch entries worth capturing, and **Data Mapper** for reshaping data into a cleaner structure before it is logged.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "Does the Logger Node alter or interrupt the flow's data?",
+    answer: "No. The Logger Node passes all upstream outputs to the next node exactly as it received them. It only writes a log entry as a side effect and adds two of its own output fields — `entryId` and `logged` — which downstream nodes can optionally reference. Inserting a Logger Node anywhere in a pipeline does not change the data the pipeline produces."
+  },
+  {
+    question: "What destinations can the Logger Node write to?",
+    answer: "The Logger Node supports three destinations: `run_log` writes entries to the Lamatic flow run detail view for in-platform inspection; `external` POSTs entries as JSON to any HTTP endpoint such as Datadog, Logtail, or Axiom; and `database` inserts entries as rows into a connected database integration. You can configure multiple Logger Nodes with different destinations in the same flow."
+  },
+  {
+    question: "How do I prevent sensitive data such as PII from appearing in logs?",
+    answer: "Use the Mask fields setting to list the field names whose values should be redacted. The Logger Node replaces those values with `[REDACTED]` before writing the entry to any destination. Note that masking applies only to this Logger Node's output — it does not affect other nodes or the platform-level run log entries written by Lamatic itself."
+  },
+  {
+    question: "Does writing to an external logging service add latency to my flow?",
+    answer: "No. Writes to external destinations are made asynchronously off the critical path, so the flow continues to the next node immediately without waiting for the HTTP request to complete. Entries may appear in external systems with a short delay of typically under one second, but this does not affect the response time seen by the end user."
+  },
+  {
+    question: "Can I use the Logger Node to debug intermediate values without changing flow behavior?",
+    answer: "Yes, this is one of the primary use cases. Insert a Logger Node between any two nodes, configure it to capture the fields you want to inspect, and set the destination to `run_log`. The captured values appear in the flow run detail view after each execution. Because the Logger Node forwards data unchanged, you can add or remove it at any time without affecting the pipeline's output."
+  },
+  {
+    question: "What log severity levels are available and when should I use each?",
+    answer: "Four levels are available: `debug` for verbose diagnostic information useful only during development; `info` for routine operational events such as successful LLM calls or completed batch runs; `warn` for conditions that are unexpected but not yet failures, such as a low confidence score; and `error` for entries written on failure branches to capture details about what went wrong. Levels are metadata only — they do not change routing behavior."
+  },
+  {
+    question: "How long are log entries retained in the Lamatic run log?",
+    answer: "Retention for entries written to the `run_log` destination follows your project's run history retention policy, which is configurable in your project settings. Entries written to external destinations or databases are retained according to the policies of those systems. If you need long-term retention, use the `external` or `database` destination and configure retention in your logging provider."
+  }
+]} />

@@ -1,0 +1,126 @@
+---
+title: Email Node
+description: Learn how to send transactional and notification emails directly from a Lamatic flow using the Email Node with support for templates, attachments, and dynamic recipients.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Email Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Email Node sends an email message from within a flow. It supports plain-text and HTML bodies, dynamic recipient lists built from upstream data, and file attachments. Use it to deliver notifications, summaries, reports, or alerts without leaving the Lamatic platform.
+
+## How It Works
+
+1. An upstream node provides the data needed to populate the email — recipient addresses, subject, body content, or attachment references.
+2. The Email Node assembles the message using the configured template and any dynamic field references.
+3. The message is dispatched through the connected email integration and the flow continues immediately without waiting for delivery confirmation.
+
+## Configuration
+
+| Setting | Description | Required |
+|---|---|---|
+| **Integration** | The email provider credential to use (SMTP, SendGrid, or Resend) | Yes |
+| **To** | One or more recipient addresses; supports template references such as `{{webhookTrigger.output.body.email}}` | Yes |
+| **From** | Sender address; must be a verified domain or address on the chosen provider | Yes |
+| **Subject** | Email subject line; supports template variables | Yes |
+| **Body** | Email body in plain text or HTML; supports template variables | Yes |
+| **CC / BCC** | Optional additional recipients | No |
+| **Attachments** | Array of file references from an upstream File Loader or Code Node | No |
+| **Reply-To** | Address that receives replies instead of the From address | No |
+
+### Supported Providers
+
+- **SMTP** — connect any SMTP-compatible mail server using host, port, username, and password credentials.
+- **SendGrid** — authenticate with an API key; supports SendGrid dynamic templates by ID.
+- **Resend** — authenticate with an API key; best suited for developer-centric transactional email.
+
+## When to Use It
+
+- **Flow completion alerts**: Notify a user or team when a long-running batch job finishes.
+- **LLM-generated summaries**: Email a nightly digest built by a Summarizer Node to a distribution list.
+- **Form confirmation**: Send an acknowledgement email when a webhook receives a form submission.
+- **Error escalation**: Trigger an alert email on the error branch of a Validator or Conditional Node.
+
+<Callout type="info">
+The Email Node dispatches the message asynchronously and does not block the flow while waiting for provider acknowledgement. For delivery status tracking, check your provider's dashboard or webhook events separately.
+</Callout>
+
+## Output Fields
+
+- `{{emailNode_1.output.messageId}}` — provider-assigned message identifier for tracking
+- `{{emailNode_1.output.success}}` — `true` if the message was accepted by the provider
+
+## Example: Send a Summary Email After Batch Processing
+
+<Steps>
+### Step 1
+A Batch Node processes 50 documents and collects the results into a single array.
+
+### Step 2
+A Summarizer Node condenses the results into a short paragraph stored in `{{summarizerNode_1.output.summary}}`.
+
+### Step 3
+The Email Node is configured with:
+- **To**: `team@example.com`
+- **Subject**: `Batch run complete — {{batchNode_1.output.totalProcessed}} items processed`
+- **Body**: `{{summarizerNode_1.output.summary}}`
+
+### Step 4
+The email is sent and the flow ends. The team receives a concise digest without any manual intervention.
+</Steps>
+
+## Performance Considerations
+
+- Email dispatch is non-blocking; the flow does not wait for the provider to confirm delivery before moving to the next node.
+- Attachments are streamed from the referenced file object and do not need to be base64-encoded manually.
+- For high-volume sending (thousands of emails per run), prefer a provider with a bulk API such as SendGrid and check your plan's sending limits.
+
+## Limitations
+
+- A single Email Node can address up to 50 recipients across To, CC, and BCC combined.
+- Attachments are capped at 25 MB total per message.
+- HTML bodies are not sanitized by Lamatic; ensure any user-supplied content is escaped before interpolating it into the body to prevent injection.
+- The Email Node does not support scheduling delayed delivery; send the node's output to a queue if deferred sending is required.
+
+## Related
+
+See **Response Node** for returning data to the caller instead of sending email, **File Loader** for sourcing attachments from storage, and **Summarizer** for generating the body content of digest emails.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "Which email providers does the Email Node support?",
+    answer: "The Email Node supports three providers: SMTP for connecting any compatible mail server using host, port, and credentials; SendGrid for API-key-based sending with support for dynamic templates; and Resend for developer-focused transactional email via API key. You select the provider through an integration credential configured in your project settings."
+  },
+  {
+    question: "Can I send to multiple recipients dynamically from upstream data?",
+    answer: "Yes. The To, CC, and BCC fields all accept template references, so you can pull recipient addresses from any upstream node output. For example, setting To to `{{webhookTrigger.output.body.email}}` sends to whatever address arrived in the webhook payload. You can also provide a comma-separated list of template references to address multiple recipients at once, up to a combined total of 50 across all recipient fields."
+  },
+  {
+    question: "Does the Email Node block the flow while the email is being sent?",
+    answer: "No. The Email Node dispatches the message to the provider asynchronously and immediately moves the flow forward without waiting for delivery confirmation. If you need to act on delivery status, use your provider's own webhook or event stream separately from the Lamatic flow."
+  },
+  {
+    question: "How do I attach a file generated earlier in the flow to the email?",
+    answer: "Reference the file output from an upstream File Loader or Code Node in the Attachments field. The Email Node streams the file directly to the provider without requiring manual base64 encoding. The total size of all attachments per message is capped at 25 MB."
+  },
+  {
+    question: "Is HTML email body content sanitized before sending?",
+    answer: "No. Lamatic does not sanitize HTML body content. If your email body includes any user-supplied data, you must escape it before interpolating it into the body template to prevent HTML injection. For fully controlled content such as LLM-generated summaries or static templates, sanitization is not necessary."
+  },
+  {
+    question: "What output does the Email Node provide to downstream nodes?",
+    answer: "The Email Node outputs two fields: `messageId`, which is the provider-assigned identifier you can use for tracking in your provider's dashboard, and `success`, which is `true` when the provider accepted the message. These fields can be referenced in downstream nodes using the standard template syntax."
+  },
+  {
+    question: "Can I use the Email Node to send emails on a schedule?",
+    answer: "The Email Node itself does not support scheduled or delayed delivery. To send emails on a schedule, trigger the flow using a scheduled webhook or a cron-based trigger node, and place the Email Node within that flow. For deferred sending, route the node's output to a queue and process it at the desired time."
+  }
+]} />
