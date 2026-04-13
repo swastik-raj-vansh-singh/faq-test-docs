@@ -118,3 +118,38 @@ The Index Node receives the clean object and writes it to the vector database wi
 ## Related
 
 See **Data Mapper** for visual drag-and-drop field mapping, **Code Node** for transformations that require loops or conditionals, and **Validator Node** for confirming field types and values before transformation.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "When should I use the Transform Node instead of a Code Node?",
+    answer: "Use the Transform Node for single-pass field operations like mapping, renaming, casting, concatenation, and simple math. If you need loops, conditionals, or multi-pass logic, switch to a Code Node. For drag-and-drop field mapping, consider the [Data Mapper]. See the [Code Node] docs for when to choose it."
+  },
+  {
+    question: "Does the Transform Node modify upstream data or create a new object?",
+    answer: "It creates a new output object and does not mutate upstream data. Other nodes can still reference the original upstream object while consuming the transformed output. This makes branching flows predictable when reusing {{webhookTrigger.output}} alongside {{transformNode_1.output}}. See [How It Works] for the execution order and data flow."
+  },
+  {
+    question: "What's the best way to pass through all upstream fields and add new ones?",
+    answer: "Use pick with all keys or reference the upstream node directly, then add new mapped fields. Example: pick id,name,email from {{user}}, then add full_name via concat or a computed total via math. Remember the Transform Node only outputs fields you define; unmapped fields are dropped. See the [Output Fields] section for patterns and examples."
+  },
+  {
+    question: "Can the Transform Node loop over arrays or transform each array item?",
+    answer: "No, it cannot iterate arrays; use a Batch Node to loop items and place a Transform inside. That pattern lets you map, cast, or rename fields for each array element. If you need per-item conditionals or complex logic in the loop, use a Code Node within the Batch. See the [Batch Node] docs for array processing patterns."
+  },
+  {
+    question: "Safely parsing JSON in Transform Node: how do I avoid errors?",
+    answer: "Validate the string before json_parse using a Validator Node to ensure it is valid JSON. json_parse throws on malformed input, so pre-checking avoids runtime errors. For example, confirm {{webhookTrigger.output.body.metadata}} is parseable, then json_parse it to an object. See the [Validator Node] docs for JSON checks."
+  },
+  {
+    question: "Calculating totals with math: how do I chain multiple operations?",
+    answer: "Use math with two operands per row and chain rows for multi-step calculations. Example: total = {{price}} * {{quantity}}, then grand_total = {{total}} * {{tax_rate}}. Supported operators are +, -, *, /, and %; combine them across rows as needed. For conditional or more complex math paths, switch to the [Code Node]."
+  },
+  {
+    question: "What are performance and memory considerations for large objects in Transform Node?",
+    answer: "Operations run in memory with negligible latency; only very large json_parse calls add small overhead. The node creates a new object on each run, so memory grows with the output size. Prefer structured upstream data over huge JSON strings to keep parsing costs low. See [Performance Considerations] for guidance."
+  }
+]} />
