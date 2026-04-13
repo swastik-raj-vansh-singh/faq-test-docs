@@ -118,3 +118,38 @@ The Index Node receives the clean object and writes it to the vector database wi
 ## Related
 
 See **Data Mapper** for visual drag-and-drop field mapping, **Code Node** for transformations that require loops or conditionals, and **Validator Node** for confirming field types and values before transformation.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "When should I use a Transform Node instead of a Code Node?",
+    answer: "Use the Transform Node for common field-level reshaping; use a Code Node for custom logic. Typical Transform operations include renaming fields, extracting nested values, concatenating strings, casting types, and simple math. See the [Code Node] docs for guidance on when to switch."
+  },
+  {
+    question: "Does the Transform Node mutate upstream data or only its own output?",
+    answer: "It does not mutate upstream data; it builds a new output object. Other nodes can still access the original upstream outputs in parallel. See the [Nodes Overview] for data flow details."
+  },
+  {
+    question: "How do I map or rename fields using template references here?",
+    answer: "Choose the map or rename operation and set Source/Value to a template like {{llmNode_1.output.text}}. The Output field name becomes the key in this node’s output object. See the [Template Syntax] docs for reference formats."
+  },
+  {
+    question: "Can the Transform Node process arrays, or does it require object input?",
+    answer: "It accepts either an object or an array from the upstream node. Regardless of input, it applies your configured operations and emits a new output object to downstream nodes. See the [Nodes Overview] for input and output expectations."
+  },
+  {
+    question: "Is rename actually different from map in the Transform Node?",
+    answer: "No; rename is an alias of map used for clarity. Both copy a value from an upstream field to a new key in the output. See the [Transform Node Operations] for operation definitions."
+  },
+  {
+    question: "Which operations support string concatenation and substring extraction in Transform Node?",
+    answer: "Use concat to join strings and slice to extract a substring by index range. For example, build full_name from first and last names, and preview from text characters 0–150. See the [Transform Node Operations] for examples."
+  },
+  {
+    question: "Why configure multiple rows, and how does operation order affect results?",
+    answer: "Multiple rows let you define several output fields, and the node applies them in listed order. The ordered execution produces the final output object that’s forwarded to the next node. See the [Nodes Overview] for execution order and chaining."
+  }
+]} />
