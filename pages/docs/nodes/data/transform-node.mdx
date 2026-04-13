@@ -1,0 +1,120 @@
+---
+title: Transform Node
+description: Learn how to reshape, enrich, and restructure data between nodes using the Transform Node in Lamatic without writing a full Code Node.
+---
+
+import { Callout } from 'nextra-theme-docs'
+import { Steps } from 'nextra/components'
+import SectionRows from '@/components/SectionRows'
+
+# Transform Node
+
+<SectionRows section="Node Type" chips={["Data"]} />
+
+The Transform Node applies a set of field-level operations to restructure data as it moves between nodes. It covers the most common transformation needs — renaming fields, extracting nested values, combining strings, casting types, and applying simple math — without requiring a full Code Node. For straightforward reshaping tasks it is faster to configure and easier to read than custom JavaScript.
+
+## How It Works
+
+1. An upstream node produces an object or array.
+2. The Transform Node applies each configured operation in order to produce a new output object.
+3. The transformed object is forwarded to the next node.
+4. The original upstream data is still accessible from other nodes — the Transform Node does not mutate it.
+
+## Configuration
+
+Each row in the Transform Node defines one output field:
+
+| Column | Description |
+|---|---|
+| **Output field name** | The key that will appear in this node's output object |
+| **Operation** | The transformation to apply (see table below) |
+| **Source / Value** | A template reference, a literal value, or an expression depending on the operation |
+
+### Available Operations
+
+| Operation | Description | Example |
+|---|---|---|
+| `map` | Copy a value from an upstream field | `{{llmNode_1.output.text}}` → `answer` |
+| `rename` | Same as map — alias for clarity | `{{webhookTrigger.output.body.userId}}` → `user_id` |
+| `concat` | Join two or more strings with an optional separator | `{{first_name}} {{last_name}}` → `full_name` |
+| `slice` | Extract a substring by start and end index | `{{text}}` chars 0–150 → `preview` |
+| `to_upper` / `to_lower` | Change string case | `{{status}}` → `STATUS` |
+| `to_number` | Cast a string to a numeric value | `"42"` → `42` |
+| `to_string` | Cast any value to its string representation | `true` → `"true"` |
+| `default` | Use a fallback value when the source is null or undefined | `{{optional_field}} \|\| "N/A"` |
+| `math` | Apply arithmetic (`+`, `-`, `*`, `/`, `%`) | `{{price}} * {{quantity}}` → `total` |
+| `pick` | Extract a subset of keys from an object | pick `id, name, email` from `{{user}}` |
+| `omit` | Remove specific keys from an object | omit `password, token` from `{{user}}` |
+| `array_length` | Return the count of items in an array | `{{chunks}}` → `chunk_count` |
+| `json_parse` | Parse a JSON string into an object | `{{llmNode_1.output.raw}}` → parsed object |
+| `json_stringify` | Serialize an object to a JSON string | `{{data}}` → JSON string |
+
+## When to Use It
+
+- **API response cleanup**: Pick only the fields you need from a verbose API response before passing data downstream.
+- **Field renaming**: Align field names from different sources to a consistent schema expected by an Index Node.
+- **LLM output prep**: Extract a nested field from a structured LLM response and cast it to the right type before using it in a condition.
+- **Display formatting**: Build a `full_name` from `first_name` and `last_name`, or format a `preview` string from a long body.
+
+<Callout type="info">
+Use the Transform Node for single-pass field operations. If your logic requires loops, conditionals, or multiple passes over the data, use a Code Node instead.
+</Callout>
+
+## Output Fields
+
+The Transform Node outputs exactly the fields you define in its configuration — no more, no less. Upstream fields that are not explicitly mapped do not appear in `{{transformNode_1.output}}` unless you include a `map` row for them.
+
+To pass all upstream fields through unchanged and add new ones, use the `pick` operation with all keys, or reference the upstream node directly in subsequent nodes.
+
+## Example: Clean and Reshape a Webhook Payload
+
+<Steps>
+### Step 1
+A Webhook Trigger receives a payload with verbose fields:
+```json
+{
+  "user_id": "u_123",
+  "full_name": "Jane Doe",
+  "account_status": "ACTIVE",
+  "metadata": "{\"plan\": \"pro\", \"seats\": 5}"
+}
+```
+
+### Step 2
+The Transform Node is configured with four rows:
+- `map` → `id` from `{{webhookTrigger.output.body.user_id}}`
+- `map` → `name` from `{{webhookTrigger.output.body.full_name}}`
+- `to_lower` → `status` from `{{webhookTrigger.output.body.account_status}}`
+- `json_parse` → `meta` from `{{webhookTrigger.output.body.metadata}}`
+
+### Step 3
+The output object is clean and ready for downstream use:
+```json
+{
+  "id": "u_123",
+  "name": "Jane Doe",
+  "status": "active",
+  "meta": { "plan": "pro", "seats": 5 }
+}
+```
+
+### Step 4
+The Index Node receives the clean object and writes it to the vector database without any further processing.
+</Steps>
+
+## Performance Considerations
+
+- All operations execute in-memory with negligible latency — even large objects with many fields add only microseconds.
+- `json_parse` on very large JSON strings (hundreds of kilobytes) may add a small but measurable overhead; prefer structured upstream outputs where possible.
+- The Transform Node creates a new object on each execution; it does not modify upstream data in place, so memory usage scales with output size.
+
+## Limitations
+
+- The Transform Node does not support iteration over arrays. To transform each item in an array, wrap a Transform Node inside a Batch Node loop.
+- Expressions in the `math` operation support only two operands per row. Chain multiple rows for more complex calculations.
+- The `json_parse` operation will throw an error if the source string is not valid JSON. Add a Validator Node upstream to confirm the string is parseable before passing it to Transform.
+- A maximum of 50 output fields can be defined per Transform Node.
+
+## Related
+
+See **Data Mapper** for visual drag-and-drop field mapping, **Code Node** for transformations that require loops or conditionals, and **Validator Node** for confirming field types and values before transformation.
