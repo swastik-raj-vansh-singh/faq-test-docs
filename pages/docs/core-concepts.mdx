@@ -247,3 +247,35 @@ When a `.mdx` doc is pushed to your repo, the GitHub Action sends it to the webh
 | Webhook | A URL that triggers a flow via HTTP POST |
 | Deployment | Publishing a flow to make it live |
 | Execution log | A record of a single flow run |
+
+
+## Frequently Asked Questions
+
+### What is a Flow in Lamatic?
+
+A Flow is the central unit of work, like an automated pipeline that takes an input, runs it through steps (nodes), and produces an output.
+
+### What are the different types of Flows?
+
+The different types of Flows are Simple, Branching, Loop, and Parallel.
+
+### How does a Flow start?
+
+A Flow starts with a trigger, such as a webhook, a schedule, or a manual run.
+
+### What is the purpose of a Node?
+
+Nodes are the individual steps inside a flow, each performing a specific job.
+
+### What are some common types of Nodes?
+
+Common node types include Trigger nodes (Webhook, Scheduler, Manual), Action nodes (HTTP Request, Code, LLM, Transform), and Control nodes (Condition, Loop, Merge).
+
+### What is the difference between Action and Control Nodes?
+
+Action Nodes perform tasks like calling APIs or running code, while Control Nodes manage the flow's path based on conditions or iterations.
+
+### What are the inputs and outputs of a Node?
+
+Every node has an Input (data it receives), a Config (settings you define), and an Output (data it produces for downstream nodes).
+
