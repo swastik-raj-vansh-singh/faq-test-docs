@@ -200,3 +200,38 @@ Use this table to decide which search node fits your use case:
 - **Vectorize Node**: Converts your documents into embeddings for storage. Must be run before any search node can query your data.
 - **Index Node**: Stores vectorized data in the vector database.
 - **Re-Ranker Node**: Re-orders search results using a cross-encoder model for higher precision before passing to an LLM.
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "When should I use hybrid search instead of only vector search?",
+    answer: "Use hybrid search when your queries might contain a mix of conceptual meaning and specific keywords, such as product names, error codes, or unique identifiers. Pure vector search excels at understanding intent but can miss these exact terms, whereas hybrid search is designed to handle both. This makes it ideal for datasets where both semantic relevance and precise term matching are critical."
+  },
+  {
+    question: "How does the Hybrid Search Node combine the two different search results?",
+    answer: "The node combines results by running the vector and keyword searches in parallel and then merging the two ranked lists using a score fusion algorithm. It uses a method called Reciprocal Rank Fusion (RRF) to intelligently interleave the results. This creates a single, unified list that balances semantic relevance with keyword precision."
+  },
+  {
+    question: "Can hybrid search reliably find results with specific keywords like product names?",
+    answer: "Yes, finding exact terms is a primary strength of the hybrid approach. The integrated keyword search component, which uses the BM25 algorithm, specializes in matching specific terms like a product name or an error code. This ensures that documents containing those exact keywords are highly ranked, even if the query's broader meaning is complex."
+  },
+  {
+    question: "What is the primary disadvantage of using the Hybrid Search Node?",
+    answer: "The main disadvantage is a slight increase in latency because it performs two search operations in parallel instead of one. The node must execute both a vector and a keyword search, then run a fusion step to combine the results. However, this small performance trade-off typically results in a significant improvement in search accuracy."
+  },
+  {
+    question: "Which search type is better for queries that are purely conceptual?",
+    answer: "For queries that are purely conceptual, a pure vector search might be sufficient as its primary strength is understanding semantic meaning. However, using the Hybrid Search Node provides a safeguard, ensuring that any unexpectedly important terms are still caught by the keyword component. The RRF fusion algorithm is designed to balance the outputs, so strong semantic results will still rank highly."
+  },
+  {
+    question: "Is the keyword search in this hybrid system the same as BM25?",
+    answer: "Yes, the keyword search functionality mentioned for the Hybrid Search Node is specifically the BM25 algorithm. BM25 is a widely-used ranking function that scores documents based on term frequency and inverse document frequency. This provides the classic, precise keyword matching that complements the node's vector search capabilities."
+  },
+  {
+    question: "How does the hybrid search process work from query to final result?",
+    answer: "The node works by converting the user's query into a vector embedding while also analyzing it for keywords. It then runs two searches simultaneously: a vector search to find semantically similar content and a BM25 keyword search for exact term matches. Finally, a fusion algorithm merges the two sets of results into a single, relevance-ranked list."
+  }
+]} />
