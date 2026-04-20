@@ -110,3 +110,27 @@ The Vector Search Node returns an array of results, each containing:
 - **Keyword Search Node**: Pure keyword-based full-text search for exact match use cases.
 - **Vectorize Node**: Converts text into embeddings before storing in a vector database.
 - **Index Node**: Stores vectorized data in your vector database.
+
+
+## Frequently Asked Questions
+
+### How do I add the Vector Search Node to my project?
+
+You can drag the Vector Search Node from the Data section of the node palette and drop it into your flow.
+
+### Can I change how many results my vector search returns?
+
+Yes, you can set the "Top K" parameter to specify the number of results you want to receive. The default is 5.
+
+### What kind of database do I need to have to use Vector Search?
+
+You must select a vector database that you have previously populated with your own data using the Vectorize and Index nodes.
+
+### Is it possible to make my search more specific without changing the query text?
+
+Yes, you can use the "Filter" parameter to apply metadata filters that narrow the scope of your search. You can also set a "Similarity Threshold" to only return results above a certain score.
+
+### What is the purpose of the "Embedding Model" parameter?
+
+The Embedding Model is used to convert your text-based query into a numerical vector. This vector is then used to find the closest matches in your database.
+
