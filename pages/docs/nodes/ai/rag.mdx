@@ -1,0 +1,36 @@
+
+
+import { FAQAccordion } from "@/components/FAQAccordion"
+
+## Frequently Asked Questions
+
+<FAQAccordion items={[
+  {
+    question: "How is the RAG Node different from a standard Vector Search Node?",
+    answer: "The RAG Node combines two steps by first retrieving relevant data from your vector database and then immediately passing it to an LLM for generation. A standard Vector Search Node only performs the first step, retrieval, leaving you to manage the connection to a language model yourself. This node simplifies the process of building context-aware generative AI applications."
+  },
+  {
+    question: "What happens if the embedding model for the RAG node does not match the one used for ingestion?",
+    answer: "Using mismatched embedding models will lead to very poor and irrelevant search results. The query must be converted into an embedding that exists in the same dimensional space as your document chunks for the similarity search to work. You must ensure this model is identical to the one used during your data ingestion and vectorization pipeline."
+  },
+  {
+    question: "How does using a RAG Node help to reduce or prevent LLM hallucinations?",
+    answer: "The RAG Node prevents hallucinations by grounding the language model with specific, factual data from your documents. It retrieves relevant chunks and instructs the LLM to generate an answer based only on that provided context. This keeps the model from relying on its generalized and potentially incorrect internal knowledge."
+  },
+  {
+    question: "What is the purpose of the System Prompt field in the RAG configuration?",
+    answer: "The System Prompt is a required instruction set that tells the LLM how to use the retrieved context. You use it to guide the model's behavior, for example, by instructing it to answer questions based solely on the provided information. A well-crafted prompt is essential for getting accurate, context-grounded answers."
+  },
+  {
+    question: "When should I adjust optional parameters like 'Top K' or 'Similarity Threshold'?",
+    answer: "You should adjust these parameters to fine-tune the amount and relevance of context sent to the LLM. For instance, increase 'Top K' to provide more context for complex queries, or raise the 'Similarity Threshold' to filter out less relevant chunks. This helps balance between providing comprehensive context and minimizing noise."
+  },
+  {
+    question: "Can I use the RAG Node without first setting up a vector database?",
+    answer: "No, a vector database with your indexed documents is a mandatory prerequisite for the node to function. The core purpose of the RAG Node is to retrieve information from this database before it can proceed to the generation step. You must first set up an ingestion pipeline to populate your vector database."
+  },
+  {
+    question: "What is the advantage of combining data retrieval and generation in a single node?",
+    answer: "The main advantage is the simplification of your development workflow. It combines two logically connected but separate tasks—retrieval and generation—into a single, configurable component. This reduces complexity by removing the need to manually pipe the output of a search node into the input of a language model."
+  }
+]} />
